@@ -1,6 +1,7 @@
 using UnityEngine;
 using GlobalDomination.GameData;
 using GlobalDomination.Managers;
+using GlobalDomination.UI;
 
 namespace GlobalDomination
 {
@@ -15,12 +16,23 @@ namespace GlobalDomination
         [SerializeField] private bool testBuildingRolls = true;
         [SerializeField] private int numberOfBuildingTests = 10;
 
+        private GameStateDisplayUI gameStateDisplayUI;
+
         private void Start()
         {
+            // Setup UI display
+            SetupGameStateUI();
+
             if (runTestOnStart)
             {
                 RunGameTest();
             }
+        }
+
+        private void SetupGameStateUI()
+        {
+            GameObject uiObject = new GameObject("GameStateDisplayUI");
+            gameStateDisplayUI = uiObject.AddComponent<GameStateDisplayUI>();
         }
 
         private void Update()
@@ -46,12 +58,12 @@ namespace GlobalDomination
                 }
             }
 
-            // Press P to print current game state
+            // Press P to toggle game state display
             if (Input.GetKeyDown(KeyCode.P))
             {
-                if (GameManager.Instance != null)
+                if (gameStateDisplayUI != null)
                 {
-                    GameManager.Instance.PrintGameState();
+                    gameStateDisplayUI.ToggleDisplay();
                 }
             }
         }
