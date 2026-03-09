@@ -46,6 +46,12 @@ namespace GlobalDomination.Managers
         public void InitializeTestGame()
         {
             Debug.Log("=== Initializing Test Game ===");
+
+            // Reset state so repeated test initialization does not duplicate players.
+            players.Clear();
+            gameOver = false;
+            gameStarted = false;
+            currentPlayerIndex = 0;
             
             // Create Player 1
             Player player1 = new Player(1, "Player 1");

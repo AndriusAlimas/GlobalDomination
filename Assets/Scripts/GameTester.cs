@@ -15,18 +15,37 @@ namespace GlobalDomination
         [SerializeField] private bool runTestOnStart = true;
         [SerializeField] private bool testBuildingRolls = true;
         [SerializeField] private int numberOfBuildingTests = 10;
+        [SerializeField] private bool enableLegacyKeyboardShortcuts = false;
 
         private GameStateDisplayUI gameStateDisplayUI;
+        private UITestManager uiTestManager;
 
         private void Start()
         {
-            // Setup UI display
-            SetupGameStateUI();
+            EnsureHudUI();
+
+            // Legacy display is only needed when UITestManager is not used.
+            if (uiTestManager == null)
+            {
+                SetupGameStateUI();
+            }
 
             if (runTestOnStart)
             {
                 RunGameTest();
             }
+        }
+
+        private void EnsureHudUI()
+        {
+            uiTestManager = FindFirstObjectByType<UITestManager>();
+            if (uiTestManager != null)
+            {
+                return;
+            }
+
+            GameObject uiManagerObject = new GameObject("UITestManager");
+            uiTestManager = uiManagerObject.AddComponent<UITestManager>();
         }
 
         private void SetupGameStateUI()
@@ -37,6 +56,11 @@ namespace GlobalDomination
 
         private void Update()
         {
+            if (!enableLegacyKeyboardShortcuts)
+            {
+                return;
+            }
+
             // Press T to run test
             if (Input.GetKeyDown(KeyCode.T))
             {
