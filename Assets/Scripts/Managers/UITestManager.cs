@@ -33,10 +33,10 @@ namespace GlobalDomination.Managers
 
         [Header("Top Header Style")]
         [SerializeField] private bool useTopHeaderCard = false;
-        [SerializeField] private Vector2 standaloneFlagSize = new Vector2(96f, 64f);
-        [SerializeField] private float standaloneFlagXOffset = -100f;
-        [SerializeField] private float standaloneFlagYOffset = -95f;
-        [SerializeField] private float standaloneHeaderTextXOffset = -60f;
+        [SerializeField] private Vector2 standaloneFlagSize = new Vector2(100f, 100f);
+        [SerializeField] private float standaloneFlagXOffset = 65.1f;
+        [SerializeField] private float standaloneFlagYOffset = -81.3f;
+        [SerializeField] private float standaloneHeaderTextXOffset = 80.7f;
 
         [Header("Card Visual Style")]
         [SerializeField] private bool useCardStyle = true;
@@ -51,6 +51,8 @@ namespace GlobalDomination.Managers
 
         [Header("Settings")]
         [SerializeField] private bool autoInitializeGame = true;
+        [SerializeField] private bool showHelpOnStart = false;
+        [SerializeField] private KeyCode toggleHelpKey = KeyCode.H;
 
         private GameManager gameManager;
         private CurrentTurnHeaderUI currentTurnHeaderUI;
@@ -61,11 +63,19 @@ namespace GlobalDomination.Managers
         private readonly System.Collections.Generic.Dictionary<CountryType, Sprite> generatedFlags =
             new System.Collections.Generic.Dictionary<CountryType, Sprite>();
 
+        private CurrentTurnHeaderSettings appliedHeaderSettings;
+        private bool headerSettingsInitialized;
+        private bool isHelpVisible;
+        private string lastRenderedCitiesInfo;
+
         private void Start()
         {
             EnsureUIReferences();
-            BuildCurrentTurnHeaderPresenter();
+            BuildCurrentTurnHeaderPresenterIfNeeded(true);
             SetupInstructions();
+            isHelpVisible = showHelpOnStart;
+            ApplyHelpVisibility();
+            BuildCurrentTurnHeaderPresenterIfNeeded(false);
             UpdateCardLayouts();
 
             if (autoInitializeGame)
@@ -74,9 +84,30 @@ namespace GlobalDomination.Managers
             }
         }
 
-        private void BuildCurrentTurnHeaderPresenter()
+        private void BuildCurrentTurnHeaderPresenterIfNeeded(bool forceRebuild)
         {
-            CurrentTurnHeaderSettings settings = new CurrentTurnHeaderSettings
+            CurrentTurnHeaderSettings currentSettings = GetCurrentHeaderSettings();
+            if (!forceRebuild && headerSettingsInitialized && HeaderSettingsEqual(currentSettings, appliedHeaderSettings))
+            {
+                return;
+            }
+
+            currentTurnHeaderUI = new CurrentTurnHeaderUI(
+                currentPlayerText,
+                currentPlayerFlagImage,
+                ResolveFlagForCountry,
+                currentSettings);
+
+            currentTurnHeaderUI.ConfigureStyle();
+            currentTurnHeaderUI.ApplyVisuals();
+
+            appliedHeaderSettings = currentSettings;
+            headerSettingsInitialized = true;
+        }
+
+        private CurrentTurnHeaderSettings GetCurrentHeaderSettings()
+        {
+            return new CurrentTurnHeaderSettings
             {
                 forceTopCenterForCurrentPlayer = forceTopCenterForCurrentPlayer,
                 useCardStyle = useCardStyle,
@@ -94,15 +125,25 @@ namespace GlobalDomination.Managers
                 cardShadowColor = cardShadowColor,
                 topCardPadding = topCardPadding
             };
+        }
 
-            currentTurnHeaderUI = new CurrentTurnHeaderUI(
-                currentPlayerText,
-                currentPlayerFlagImage,
-                ResolveFlagForCountry,
-                settings);
-
-            currentTurnHeaderUI.ConfigureStyle();
-            currentTurnHeaderUI.ApplyVisuals();
+        private static bool HeaderSettingsEqual(CurrentTurnHeaderSettings a, CurrentTurnHeaderSettings b)
+        {
+            return a.forceTopCenterForCurrentPlayer == b.forceTopCenterForCurrentPlayer
+                && a.useCardStyle == b.useCardStyle
+                && a.useTopHeaderCard == b.useTopHeaderCard
+                && Mathf.Approximately(a.topOffset, b.topOffset)
+                && Mathf.Approximately(a.headerFontSize, b.headerFontSize)
+                && Mathf.Approximately(a.countryFontSize, b.countryFontSize)
+                && Mathf.Approximately(a.standaloneFlagXOffset, b.standaloneFlagXOffset)
+                && Mathf.Approximately(a.standaloneFlagYOffset, b.standaloneFlagYOffset)
+                && Mathf.Approximately(a.standaloneHeaderTextXOffset, b.standaloneHeaderTextXOffset)
+                && a.standaloneFlagSize == b.standaloneFlagSize
+                && a.topCardSprite == b.topCardSprite
+                && a.topCardColor == b.topCardColor
+                && a.cardBorderColor == b.cardBorderColor
+                && a.cardShadowColor == b.cardShadowColor
+                && a.topCardPadding == b.topCardPadding;
         }
 
         private void EnsureUIReferences()
@@ -237,6 +278,7 @@ B - Roll for Building
 N - Next Turn
 P - Print to Console
 R - Refresh Display
+H - Toggle Help Panel
 
 <b>UI Buttons:</b>
 Use the buttons below to test game functions
@@ -370,7 +412,12 @@ Test the dice rolling system and game initialization";
 
             if (gameInfoText != null)
             {
-                gameInfoText.text = BuildCitiesInfo(currentPlayer);
+                string nextInfo = BuildCitiesInfo(currentPlayer);
+                if (!string.Equals(lastRenderedCitiesInfo, nextInfo, System.StringComparison.Ordinal))
+                {
+                    gameInfoText.text = nextInfo;
+                    lastRenderedCitiesInfo = nextInfo;
+                }
             }
         }
 
@@ -380,7 +427,7 @@ Test the dice rolling system and game initialization";
 
             foreach (City city in currentPlayer.ownedCities)
             {
-                info += $"\n<b>{city.cityName}</b> {(city.isCapital ? "?" : "")}\n";
+                info += $"\n<b>{city.cityName}</b> {(city.isCapital ? "*" : "")}\n";
                 info += $"  HP: {city.healthPoints} | Money: {city.money} | Power: {city.cityPower}\n";
                 info += $"  Upgrades: {city.upgradePoints} | Units: {city.unitsInFort.Count}\n";
                 info += $"  <b>Buildings ({city.buildings.Count}):</b>\n";
@@ -393,7 +440,7 @@ Test the dice rolling system and game initialization";
                 {
                     foreach (Building building in city.buildings)
                     {
-                        info += $"    • {building.displayName}\n";
+                        info += $"    - {building.displayName}\n";
                     }
                 }
             }
@@ -447,7 +494,26 @@ Test the dice rolling system and game initialization";
 
             if (instructionsCardBackground != null)
             {
-                instructionsCardBackground.gameObject.SetActive(true);
+                instructionsCardBackground.gameObject.SetActive(isHelpVisible);
+            }
+        }
+
+        private void ToggleHelpVisibility()
+        {
+            isHelpVisible = !isHelpVisible;
+            ApplyHelpVisibility();
+        }
+
+        private void ApplyHelpVisibility()
+        {
+            if (instructionsText != null)
+            {
+                instructionsText.gameObject.SetActive(isHelpVisible);
+            }
+
+            if (instructionsCardBackground != null)
+            {
+                instructionsCardBackground.gameObject.SetActive(useCardStyle && isHelpVisible);
             }
         }
 
@@ -519,7 +585,8 @@ Test the dice rolling system and game initialization";
                 shadow.useGraphicAlpha = true;
             }
 
-            card.transform.SetSiblingIndex(text.transform.GetSiblingIndex());
+            int textSibling = text.transform.GetSiblingIndex();
+            card.transform.SetSiblingIndex(Mathf.Max(0, textSibling - 1));
             return card;
         }
 
@@ -548,10 +615,15 @@ Test the dice rolling system and game initialization";
 
         private void Update()
         {
+            BuildCurrentTurnHeaderPresenterIfNeeded(false);
             UpdateCardLayouts();
             UpdateDisplay();
 
-            if (Input.GetKeyDown(KeyCode.T))
+            if (Input.GetKeyDown(toggleHelpKey))
+            {
+                ToggleHelpVisibility();
+            }
+            else if (Input.GetKeyDown(KeyCode.T))
             {
                 InitializeGame();
             }
