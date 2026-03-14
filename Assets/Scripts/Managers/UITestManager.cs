@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using TMPro;
 using GlobalDomination.GameData;
 using GlobalDomination.UI;
@@ -11,32 +12,31 @@ namespace GlobalDomination.Managers
     /// </summary>
     public class UITestManager : MonoBehaviour
     {
-        [System.Serializable]
-        private class CountryFlagEntry
-        {
-            public CountryType country;
-            public Sprite flagSprite;
-        }
+        private const float DefaultTopOffset = 24f;
+        private const float DefaultHeaderFontSize = 36f;
+        private const float DefaultCountryFontSize = 24f;
+        private const float DefaultHudRightMargin = 28f;
+        private const float DefaultHudFlagWidth = 103.1f;
+        private const float DefaultHudFlagHeight = 66.6f;
+        private const float DefaultHudFlagGap = 10f;
+        private const float DefaultHudTextWidth = 190f;
+        private const float DefaultHudBlockHeight = 72f;
 
         [Header("UI References")]
-        [SerializeField] private TextMeshProUGUI gameInfoText;
         [SerializeField] private TextMeshProUGUI currentPlayerText;
         [SerializeField] private Image currentPlayerFlagImage;
         [SerializeField] private TextMeshProUGUI instructionsText;
 
-        [Header("Current Turn HUD")]
-        [SerializeField] private bool forceTopCenterForCurrentPlayer = true;
-        [SerializeField] private float topOffset = 24f;
-        [SerializeField] private float headerFontSize = 36f;
-        [SerializeField] private float countryFontSize = 24f;
-        [SerializeField] private CountryFlagEntry[] countryFlags;
-
         [Header("Top Header Style")]
         [SerializeField] private bool useTopHeaderCard = false;
-        [SerializeField] private Vector2 standaloneFlagSize = new Vector2(100f, 100f);
-        [SerializeField] private float standaloneFlagXOffset = 65.1f;
-        [SerializeField] private float standaloneFlagYOffset = -81.3f;
-        [SerializeField] private float standaloneHeaderTextXOffset = 80.7f;
+
+        [Header("Player HUD Layout")]
+        [SerializeField] private float hudRightMargin = 28f;
+        [SerializeField] private float hudFlagGap = 10f;
+        [SerializeField] private float hudTextWidth = 190f;
+        [SerializeField] private float hudBlockHeight = 72f;
+        [SerializeField] private Vector2 hudPlayerNameOffset = Vector2.zero;
+        [SerializeField] private Vector2 hudCountryOffset = Vector2.zero;
 
         [Header("Card Visual Style")]
         [SerializeField] private bool useCardStyle = true;
@@ -56,9 +56,10 @@ namespace GlobalDomination.Managers
 
         private GameManager gameManager;
         private CurrentTurnHeaderUI currentTurnHeaderUI;
+        private CitiesDisplayManager citiesDisplayManager;
 
-        private Image gameInfoCardBackground;
         private Image instructionsCardBackground;
+        
 
         private readonly System.Collections.Generic.Dictionary<CountryType, Sprite> generatedFlags =
             new System.Collections.Generic.Dictionary<CountryType, Sprite>();
@@ -66,7 +67,31 @@ namespace GlobalDomination.Managers
         private CurrentTurnHeaderSettings appliedHeaderSettings;
         private bool headerSettingsInitialized;
         private bool isHelpVisible;
-        private string lastRenderedCitiesInfo;
+        private int turnIteration = 1;
+
+        private void Reset()
+        {
+            ApplyPlayerHudDefaults();
+        }
+
+        [ContextMenu("Apply Player HUD Defaults")]
+        private void ApplyPlayerHudDefaults()
+        {
+            hudRightMargin = DefaultHudRightMargin;
+            hudFlagGap = DefaultHudFlagGap;
+            hudTextWidth = DefaultHudTextWidth;
+            hudBlockHeight = DefaultHudBlockHeight;
+            hudPlayerNameOffset = Vector2.zero;
+            hudCountryOffset = Vector2.zero;
+
+            headerSettingsInitialized = false;
+
+            if (Application.isPlaying)
+            {
+                BuildCurrentTurnHeaderPresenterIfNeeded(true);
+                UpdateDisplay();
+            }
+        }
 
         private void Start()
         {
@@ -101,6 +126,12 @@ namespace GlobalDomination.Managers
             currentTurnHeaderUI.ConfigureStyle();
             currentTurnHeaderUI.ApplyVisuals();
 
+            // Re-apply player text so the display stays populated after a live settings change.
+            if (gameManager != null && gameManager.players.Count > 0)
+            {
+                currentTurnHeaderUI.UpdatePlayer(gameManager.GetCurrentPlayer(), turnIteration);
+            }
+
             appliedHeaderSettings = currentSettings;
             headerSettingsInitialized = true;
         }
@@ -109,46 +140,49 @@ namespace GlobalDomination.Managers
         {
             return new CurrentTurnHeaderSettings
             {
-                forceTopCenterForCurrentPlayer = forceTopCenterForCurrentPlayer,
                 useCardStyle = useCardStyle,
                 useTopHeaderCard = useTopHeaderCard,
-                topOffset = topOffset,
-                headerFontSize = headerFontSize,
-                countryFontSize = countryFontSize,
-                standaloneFlagXOffset = standaloneFlagXOffset,
-                standaloneFlagYOffset = standaloneFlagYOffset,
-                standaloneHeaderTextXOffset = standaloneHeaderTextXOffset,
-                standaloneFlagSize = standaloneFlagSize,
+                topOffset = DefaultTopOffset,
+                headerFontSize = DefaultHeaderFontSize,
+                countryFontSize = DefaultCountryFontSize,
                 topCardSprite = topCardSprite,
                 topCardColor = topCardColor,
                 cardBorderColor = cardBorderColor,
                 cardShadowColor = cardShadowColor,
-                topCardPadding = topCardPadding
+                topCardPadding = topCardPadding,
+                hudRightMargin = hudRightMargin,
+                hudFlagWidth = DefaultHudFlagWidth,
+                hudFlagHeight = DefaultHudFlagHeight,
+                hudFlagGap = hudFlagGap,
+                hudTextWidth = hudTextWidth,
+                hudBlockHeight = hudBlockHeight
+                ,hudPlayerNameOffset = hudPlayerNameOffset,
+                hudCountryOffset = hudCountryOffset
             };
         }
 
         private static bool HeaderSettingsEqual(CurrentTurnHeaderSettings a, CurrentTurnHeaderSettings b)
         {
-            return a.forceTopCenterForCurrentPlayer == b.forceTopCenterForCurrentPlayer
-                && a.useCardStyle == b.useCardStyle
+            return a.useCardStyle == b.useCardStyle
                 && a.useTopHeaderCard == b.useTopHeaderCard
-                && Mathf.Approximately(a.topOffset, b.topOffset)
-                && Mathf.Approximately(a.headerFontSize, b.headerFontSize)
-                && Mathf.Approximately(a.countryFontSize, b.countryFontSize)
-                && Mathf.Approximately(a.standaloneFlagXOffset, b.standaloneFlagXOffset)
-                && Mathf.Approximately(a.standaloneFlagYOffset, b.standaloneFlagYOffset)
-                && Mathf.Approximately(a.standaloneHeaderTextXOffset, b.standaloneHeaderTextXOffset)
-                && a.standaloneFlagSize == b.standaloneFlagSize
                 && a.topCardSprite == b.topCardSprite
                 && a.topCardColor == b.topCardColor
                 && a.cardBorderColor == b.cardBorderColor
                 && a.cardShadowColor == b.cardShadowColor
-                && a.topCardPadding == b.topCardPadding;
+                && a.topCardPadding == b.topCardPadding
+                && Mathf.Approximately(a.hudRightMargin, b.hudRightMargin)
+                && Mathf.Approximately(a.hudFlagGap, b.hudFlagGap)
+                && Mathf.Approximately(a.hudTextWidth, b.hudTextWidth)
+                && Mathf.Approximately(a.hudBlockHeight, b.hudBlockHeight)
+                && a.hudPlayerNameOffset == b.hudPlayerNameOffset
+                && a.hudCountryOffset == b.hudCountryOffset;
         }
 
         private void EnsureUIReferences()
         {
-            bool missingAnyReference = gameInfoText == null || currentPlayerText == null || instructionsText == null;
+            EnsureEventSystem();
+
+            bool missingAnyReference = currentPlayerText == null || instructionsText == null;
             if (!missingAnyReference)
             {
                 return;
@@ -172,7 +206,7 @@ namespace GlobalDomination.Managers
                     new Vector2(0.5f, 1f),
                     new Vector2(0.5f, 1f),
                     new Vector2(0.5f, 1f),
-                    new Vector2(0f, -topOffset),
+                    new Vector2(0f, -DefaultTopOffset),
                     new Vector2(560f, 120f),
                     32f,
                     TextAlignmentOptions.Center,
@@ -188,26 +222,17 @@ namespace GlobalDomination.Managers
                 flagRect.anchorMin = new Vector2(0.5f, 1f);
                 flagRect.anchorMax = new Vector2(0.5f, 1f);
                 flagRect.pivot = new Vector2(0.5f, 1f);
-                flagRect.anchoredPosition = new Vector2(-220f, -topOffset);
+                flagRect.anchoredPosition = new Vector2(-220f, -DefaultTopOffset);
                 flagRect.sizeDelta = new Vector2(56f, 36f);
 
                 currentPlayerFlagImage = flagObject.AddComponent<Image>();
                 currentPlayerFlagImage.enabled = false;
             }
-
-            if (gameInfoText == null)
+            
+            // Create Cities Display Manager
+            if (citiesDisplayManager == null)
             {
-                gameInfoText = CreateTextElement(
-                    "GameInfoText",
-                    canvas.transform,
-                    new Vector2(0f, 0f),
-                    new Vector2(0f, 1f),
-                    new Vector2(0f, 1f),
-                    new Vector2(20f, -140f),
-                    new Vector2(620f, 760f),
-                    18f,
-                    TextAlignmentOptions.TopLeft,
-                    new Color(0.94f, 0.94f, 0.98f, 1f));
+                citiesDisplayManager = CitiesDisplayManager.CreateCitiesDisplay(canvas);
             }
 
             if (instructionsText == null)
@@ -223,6 +248,29 @@ namespace GlobalDomination.Managers
                     16f,
                     TextAlignmentOptions.BottomRight,
                     new Color(0.85f, 0.9f, 1f, 1f));
+            }
+        }
+
+        private void EnsureEventSystem()
+        {
+            EventSystem existingEventSystem = FindFirstObjectByType<EventSystem>();
+            if (existingEventSystem != null)
+            {
+                return;
+            }
+
+            GameObject eventSystemObject = new GameObject("EventSystem");
+            eventSystemObject.AddComponent<EventSystem>();
+
+            // Prefer Input System UI module when package is present, otherwise use legacy module.
+            System.Type inputSystemModuleType = System.Type.GetType("UnityEngine.InputSystem.UI.InputSystemUIInputModule, Unity.InputSystem");
+            if (inputSystemModuleType != null)
+            {
+                eventSystemObject.AddComponent(inputSystemModuleType);
+            }
+            else
+            {
+                eventSystemObject.AddComponent<StandaloneInputModule>();
             }
         }
 
@@ -299,6 +347,7 @@ Test the dice rolling system and game initialization";
             }
 
             gameManager.InitializeTestGame();
+            turnIteration = 1;
             UpdateDisplay();
 
             Debug.Log("Game initialized! Use buttons or keyboard to interact.");
@@ -343,7 +392,17 @@ Test the dice rolling system and game initialization";
                 return;
             }
 
+            CityIconUI.CloseActionMenu();
+            int previousPlayerIndex = gameManager.currentPlayerIndex;
             gameManager.NextTurn();
+
+            if (gameManager.players != null
+                && gameManager.players.Count > 0
+                && gameManager.currentPlayerIndex <= previousPlayerIndex)
+            {
+                turnIteration++;
+            }
+
             UpdateDisplay();
 
             Player currentPlayer = gameManager.GetCurrentPlayer();
@@ -398,9 +457,10 @@ Test the dice rolling system and game initialization";
         {
             if (gameManager == null || gameManager.players.Count == 0)
             {
-                if (gameInfoText != null)
+                
+                if (citiesDisplayManager != null)
                 {
-                    gameInfoText.text = "Press T or click 'Initialize Game' to start";
+                    citiesDisplayManager.ClearCityIcons();
                 }
 
                 currentTurnHeaderUI?.Clear();
@@ -408,44 +468,13 @@ Test the dice rolling system and game initialization";
             }
 
             Player currentPlayer = gameManager.GetCurrentPlayer();
-            currentTurnHeaderUI?.UpdatePlayer(currentPlayer);
+            currentTurnHeaderUI?.UpdatePlayer(currentPlayer, turnIteration);
 
-            if (gameInfoText != null)
+            // Update city icons display
+            if (citiesDisplayManager != null && currentPlayer != null && currentPlayer.ownedCities != null)
             {
-                string nextInfo = BuildCitiesInfo(currentPlayer);
-                if (!string.Equals(lastRenderedCitiesInfo, nextInfo, System.StringComparison.Ordinal))
-                {
-                    gameInfoText.text = nextInfo;
-                    lastRenderedCitiesInfo = nextInfo;
-                }
+                citiesDisplayManager.DisplayCities(currentPlayer.ownedCities);
             }
-        }
-
-        private static string BuildCitiesInfo(Player currentPlayer)
-        {
-            string info = "<b>=== CITIES ===</b>\n";
-
-            foreach (City city in currentPlayer.ownedCities)
-            {
-                info += $"\n<b>{city.cityName}</b> {(city.isCapital ? "*" : "")}\n";
-                info += $"  HP: {city.healthPoints} | Money: {city.money} | Power: {city.cityPower}\n";
-                info += $"  Upgrades: {city.upgradePoints} | Units: {city.unitsInFort.Count}\n";
-                info += $"  <b>Buildings ({city.buildings.Count}):</b>\n";
-
-                if (city.buildings.Count == 0)
-                {
-                    info += "    None\n";
-                }
-                else
-                {
-                    foreach (Building building in city.buildings)
-                    {
-                        info += $"    - {building.displayName}\n";
-                    }
-                }
-            }
-
-            return info;
         }
 
         private void UpdateCardLayouts()
@@ -458,11 +487,6 @@ Test the dice rolling system and game initialization";
         {
             if (!useCardStyle)
             {
-                if (gameInfoCardBackground != null)
-                {
-                    gameInfoCardBackground.gameObject.SetActive(false);
-                }
-
                 if (instructionsCardBackground != null)
                 {
                     instructionsCardBackground.gameObject.SetActive(false);
@@ -471,13 +495,8 @@ Test the dice rolling system and game initialization";
                 return;
             }
 
-            gameInfoCardBackground = EnsureCardBackground(
-                gameInfoText,
-                gameInfoCardBackground,
-                "CitiesCard",
-                sideCardSprite,
-                sideCardColor,
-                sideCardPadding);
+            // Note: We're not adding a card background for city icons display
+            // since they display as individual icons now
 
             instructionsCardBackground = EnsureCardBackground(
                 instructionsText,
@@ -486,11 +505,6 @@ Test the dice rolling system and game initialization";
                 sideCardSprite,
                 sideCardColor,
                 sideCardPadding);
-
-            if (gameInfoCardBackground != null)
-            {
-                gameInfoCardBackground.gameObject.SetActive(true);
-            }
 
             if (instructionsCardBackground != null)
             {
@@ -592,17 +606,6 @@ Test the dice rolling system and game initialization";
 
         private Sprite ResolveFlagForCountry(CountryType country)
         {
-            if (countryFlags != null)
-            {
-                foreach (CountryFlagEntry flagEntry in countryFlags)
-                {
-                    if (flagEntry != null && flagEntry.country == country && flagEntry.flagSprite != null)
-                    {
-                        return flagEntry.flagSprite;
-                    }
-                }
-            }
-
             if (generatedFlags.TryGetValue(country, out Sprite cachedSprite) && cachedSprite != null)
             {
                 return cachedSprite;
@@ -617,7 +620,6 @@ Test the dice rolling system and game initialization";
         {
             BuildCurrentTurnHeaderPresenterIfNeeded(false);
             UpdateCardLayouts();
-            UpdateDisplay();
 
             if (Input.GetKeyDown(toggleHelpKey))
             {
@@ -650,3 +652,5 @@ Test the dice rolling system and game initialization";
         }
     }
 }
+
+

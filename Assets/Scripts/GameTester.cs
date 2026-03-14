@@ -11,11 +11,7 @@ namespace GlobalDomination
     /// </summary>
     public class GameTester : MonoBehaviour
     {
-        [Header("Test Settings")]
-        [SerializeField] private bool runTestOnStart = true;
-        [SerializeField] private bool testBuildingRolls = true;
-        [SerializeField] private int numberOfBuildingTests = 10;
-        [SerializeField] private bool enableLegacyKeyboardShortcuts = false;
+        private const int DefaultBuildingTestRolls = 10;
 
         private GameStateDisplayUI gameStateDisplayUI;
         private UITestManager uiTestManager;
@@ -28,11 +24,6 @@ namespace GlobalDomination
             if (uiTestManager == null)
             {
                 SetupGameStateUI();
-            }
-
-            if (runTestOnStart)
-            {
-                RunGameTest();
             }
         }
 
@@ -56,40 +47,7 @@ namespace GlobalDomination
 
         private void Update()
         {
-            if (!enableLegacyKeyboardShortcuts)
-            {
-                return;
-            }
-
-            // Press T to run test
-            if (Input.GetKeyDown(KeyCode.T))
-            {
-                RunGameTest();
-            }
-
-            // Press B to test building rolls
-            if (Input.GetKeyDown(KeyCode.B))
-            {
-                TestBuildingRolls();
-            }
-
-            // Press N to advance to next turn
-            if (Input.GetKeyDown(KeyCode.N))
-            {
-                if (GameManager.Instance != null)
-                {
-                    GameManager.Instance.NextTurn();
-                }
-            }
-
-            // Press P to toggle game state display
-            if (Input.GetKeyDown(KeyCode.P))
-            {
-                if (gameStateDisplayUI != null)
-                {
-                    gameStateDisplayUI.ToggleDisplay();
-                }
-            }
+            // Intentionally left blank: legacy keyboard shortcuts removed.
         }
 
         public void RunGameTest()
@@ -109,11 +67,7 @@ namespace GlobalDomination
             // Initialize test game
             gm.InitializeTestGame();
 
-            // Test building rolls if enabled
-            if (testBuildingRolls)
-            {
-                TestBuildingRolls();
-            }
+            TestBuildingRolls();
 
             Debug.Log("\n" + new string('=', 70));
             Debug.Log("TEST COMPLETE");
@@ -132,7 +86,7 @@ namespace GlobalDomination
             var buildingCounts = new System.Collections.Generic.Dictionary<BuildingType, int>();
             int noneCount = 0;
 
-            for (int i = 0; i < numberOfBuildingTests; i++)
+            for (int i = 0; i < DefaultBuildingTestRolls; i++)
             {
                 Building building = BuildingRollTable.RollForBuilding();
                 
@@ -150,7 +104,7 @@ namespace GlobalDomination
                 }
             }
 
-            Debug.Log($"\nResults from {numberOfBuildingTests} rolls:");
+            Debug.Log($"\nResults from {DefaultBuildingTestRolls} rolls:");
             Debug.Log($"  Empty slots: {noneCount}");
             
             foreach (var kvp in buildingCounts)

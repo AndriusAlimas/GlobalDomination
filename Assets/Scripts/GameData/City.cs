@@ -13,6 +13,7 @@ namespace GlobalDomination.GameData
         public int healthPoints;      // Population (rolled 3 times)
         public int money;             // Money (rolled 2 times)
         public int cityPower;         // Defense (rolled 1 time)
+        public bool hasTakenTurn;     // Simple turn-done marker for UI dimming
         
         // Buildings and upgrades
         public List<Building> buildings;
