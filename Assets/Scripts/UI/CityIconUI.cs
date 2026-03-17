@@ -3,7 +3,9 @@ using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using TMPro;
 using GlobalDomination.GameData;
+using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 #if UNITY_EDITOR
 using UnityEditor;
 using System.IO;
@@ -27,11 +29,71 @@ namespace GlobalDomination.UI
         [SerializeField] private CanvasGroup cityCanvasGroup;
 
         private static readonly Dictionary<int, Sprite> transparentSpriteCache = new Dictionary<int, Sprite>();
+        private static readonly string[] animatedDiceD6PrefabPaths =
+        {
+            "Assets/Animated Dice (Random Art Attack)/HighPolyDice/6SidedHighPoly.prefab",
+            "Assets/Animated Dice (Random Art Attack)/HighPolyDice/6SidedHighPoly Variant 17.prefab",
+            "Assets/Animated Dice (Random Art Attack)/HighPolyDice/6SidedPipsHighPoly.prefab"
+        };
+        private const float DiceArenaWallHeight = 14f;
         private static GameObject activeActionMenu;
         private static CityIconUI activeMenuOwner;
         private static Sprite actionCardSprite;
+        private static Sprite diceHandSprite;
+        private static GameObject activeDiceOverlay;
+        private static GameObject activeDiceWorldRoot;
         
         private City linkedCity;
+
+        private sealed class AnimatedDiceWorldContext
+        {
+            public GameObject root;
+            public GameObject diceObject;
+            public DiceStats diceStats;
+            public Rigidbody rigidbody;
+            public RollDrop rollDrop;
+            public Material floorMaterial;
+            public PhysicsMaterial arenaPhysicsMaterial;
+            public PhysicsMaterial arenaWallPhysicsMaterial;
+            public List<Material> runtimeDiceMaterials;
+            public Vector3 boundsCenter;
+            public float boundsHalfExtent;
+            public float floorY;
+
+            public void Dispose()
+            {
+                if (root != null)
+                {
+                    Object.Destroy(root);
+                }
+
+                if (floorMaterial != null)
+                {
+                    Object.Destroy(floorMaterial);
+                }
+
+                if (arenaPhysicsMaterial != null)
+                {
+                    Object.Destroy(arenaPhysicsMaterial);
+                }
+
+                if (arenaWallPhysicsMaterial != null)
+                {
+                    Object.Destroy(arenaWallPhysicsMaterial);
+                }
+
+                if (runtimeDiceMaterials != null)
+                {
+                    for (int i = 0; i < runtimeDiceMaterials.Count; i++)
+                    {
+                        if (runtimeDiceMaterials[i] != null)
+                        {
+                            Object.Destroy(runtimeDiceMaterials[i]);
+                        }
+                    }
+                }
+            }
+        }
         
         /// <summary>
         /// Creates a city icon UI programmatically with dynamic scaling based on population.
@@ -628,9 +690,103 @@ namespace GlobalDomination.UI
                     }
                 }
             }
-            
+
             texture.Apply();
             return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f);
+        }
+
+        private static Sprite CreateDiceHandSprite()
+        {
+            const int width = 192;
+            const int height = 256;
+
+            Texture2D texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.filterMode = FilterMode.Bilinear;
+
+            Color clear = Color.clear;
+            Color fill = new Color(0.83f, 0.58f, 0.34f, 1f);
+            Color shadow = new Color(0.56f, 0.31f, 0.17f, 1f);
+            Color highlight = new Color(0.92f, 0.72f, 0.47f, 1f);
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    texture.SetPixel(x, y, clear);
+                }
+            }
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    bool insidePalm = IsInsideRoundedRect(x, y, 54f, 40f, 86f, 120f, 24f);
+                    bool insideFinger1 = IsInsideRoundedRect(x, y, 38f, 138f, 26f, 84f, 12f);
+                    bool insideFinger2 = IsInsideRoundedRect(x, y, 64f, 156f, 24f, 88f, 12f);
+                    bool insideFinger3 = IsInsideRoundedRect(x, y, 90f, 150f, 24f, 86f, 12f);
+                    bool insideFinger4 = IsInsideRoundedRect(x, y, 116f, 132f, 24f, 76f, 12f);
+                    bool insideThumb = IsInsideEllipse(x, y, 40f, 105f, 28f, 58f, 0.58f);
+
+                    bool inside = insidePalm || insideFinger1 || insideFinger2 || insideFinger3 || insideFinger4 || insideThumb;
+                    if (!inside)
+                    {
+                        continue;
+                    }
+
+                    bool edge = !IsInsideRoundedRect(x - 2, y, 54f, 40f, 86f, 120f, 24f)
+                        && insidePalm;
+                    edge |= !IsInsideRoundedRect(x, y - 2, 38f, 138f, 26f, 84f, 12f) && insideFinger1;
+                    edge |= !IsInsideRoundedRect(x, y - 2, 64f, 156f, 24f, 88f, 12f) && insideFinger2;
+                    edge |= !IsInsideRoundedRect(x, y - 2, 90f, 150f, 24f, 86f, 12f) && insideFinger3;
+                    edge |= !IsInsideRoundedRect(x, y - 2, 116f, 132f, 24f, 76f, 12f) && insideFinger4;
+
+                    float light = Mathf.InverseLerp(0f, height, y);
+                    Color color = Color.Lerp(shadow, fill, light);
+                    if (x < 72)
+                    {
+                        color = Color.Lerp(color, shadow, 0.18f);
+                    }
+                    if (x > 110 && y > 70)
+                    {
+                        color = Color.Lerp(color, highlight, 0.22f);
+                    }
+                    if (edge)
+                    {
+                        color = Color.Lerp(color, shadow, 0.35f);
+                    }
+
+                    texture.SetPixel(x, y, color);
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.08f), 100f);
+        }
+
+        private static bool IsInsideRoundedRect(float x, float y, float left, float bottom, float width, float height, float radius)
+        {
+            float right = left + width;
+            float top = bottom + height;
+
+            float clampedX = Mathf.Clamp(x, left + radius, right - radius);
+            float clampedY = Mathf.Clamp(y, bottom + radius, top - radius);
+            float dx = x - clampedX;
+            float dy = y - clampedY;
+            return (dx * dx) + (dy * dy) <= radius * radius;
+        }
+
+        private static bool IsInsideEllipse(float x, float y, float centerX, float centerY, float radiusX, float radiusY, float rotationRadians)
+        {
+            float sin = Mathf.Sin(rotationRadians);
+            float cos = Mathf.Cos(rotationRadians);
+
+            float dx = x - centerX;
+            float dy = y - centerY;
+            float localX = dx * cos + dy * sin;
+            float localY = -dx * sin + dy * cos;
+
+            float value = (localX * localX) / (radiusX * radiusX) + (localY * localY) / (radiusY * radiusY);
+            return value <= 1f;
         }
 
         /// <summary>
@@ -1237,7 +1393,961 @@ namespace GlobalDomination.UI
 
         private void OnActionClicked(string actionName)
         {
+            if (actionName == "Build new city")
+            {
+                CloseActionMenu();
+                StartCoroutine(PlayBuildCityDiceRollAnimation());
+                return;
+            }
+
             Debug.Log($"City '{linkedCity?.cityName}' selected action: {actionName}");
+        }
+
+        private IEnumerator PlayBuildCityDiceRollAnimation()
+        {
+            Canvas canvas = GetComponentInParent<Canvas>();
+            Camera sceneCamera = Camera.main;
+            if (sceneCamera == null)
+            {
+                yield break;
+            }
+
+            Vector3 originalCamPos = sceneCamera.transform.position;
+            Quaternion originalCamRot = sceneCamera.transform.rotation;
+            float originalCamFov = sceneCamera.fieldOfView;
+            bool originalCamOrtho = sceneCamera.orthographic;
+
+            if (activeDiceOverlay != null)
+            {
+                Destroy(activeDiceOverlay);
+                activeDiceOverlay = null;
+            }
+
+            if (activeDiceWorldRoot != null)
+            {
+                Destroy(activeDiceWorldRoot);
+                activeDiceWorldRoot = null;
+            }
+
+            GameObject overlayObj = new GameObject("DiceRollOverlay");
+            if (canvas != null)
+            {
+                overlayObj.transform.SetParent(canvas.transform, false);
+                overlayObj.transform.SetAsLastSibling();
+            }
+            activeDiceOverlay = overlayObj;
+
+            RectTransform overlayRect = overlayObj.AddComponent<RectTransform>();
+            overlayRect.anchorMin = Vector2.zero;
+            overlayRect.anchorMax = Vector2.one;
+            overlayRect.offsetMin = Vector2.zero;
+            overlayRect.offsetMax = Vector2.zero;
+
+            Image overlayBg = overlayObj.AddComponent<Image>();
+            overlayBg.color = new Color(0f, 0f, 0f, 0.15f);
+            // Block other UI interactions while dice roll is active.
+            overlayBg.raycastTarget = true;
+
+            Vector2 cityScreenPoint = new Vector2(Screen.width * 0.5f, Screen.height * 0.42f);
+
+            AnimatedDiceWorldContext animatedDiceContext = TryCreateAnimatedD6WorldRoller(sceneCamera, cityScreenPoint);
+            if (animatedDiceContext == null)
+            {
+                if (activeDiceOverlay == overlayObj)
+                {
+                    Destroy(activeDiceOverlay);
+                    activeDiceOverlay = null;
+                }
+
+                yield break;
+            }
+
+            activeDiceWorldRoot = animatedDiceContext.root;
+
+            // Keep a top-heavy camera angle so the roll is clearly visible from above.
+            Vector3 viewCenter = animatedDiceContext.boundsCenter + new Vector3(0f, 0.15f, 0f);
+            sceneCamera.orthographic = false;
+            sceneCamera.fieldOfView = 30f;
+            sceneCamera.transform.position = viewCenter + new Vector3(0f, 30.5f, -4.5f);
+            sceneCamera.transform.rotation = Quaternion.LookRotation(viewCenter - sceneCamera.transform.position, Vector3.up);
+
+            // Build colliders from the current screen corners so edge/corner hits always collide.
+            RebuildDiceScreenBounds(animatedDiceContext, sceneCamera);
+
+            TextMeshProUGUI resultText = CreateDiceText(overlayObj.transform, "Result", 38f, new Vector2(0f, -270f));
+            resultText.color = new Color(1f, 0.92f, 0.2f, 1f);
+            resultText.text = string.Empty;
+            resultText.raycastTarget = false;
+
+            TextMeshProUGUI hintText = CreateDiceText(overlayObj.transform, "Hint", 15f, new Vector2(0f, -340f));
+            hintText.text = "Hold left mouse to shake up power, release to throw";
+            hintText.color = new Color(0.8f, 0.9f, 1f, 0.9f);
+            hintText.raycastTarget = false;
+
+            Image handImage = CreateDiceHandImage(overlayObj.transform);
+            RectTransform handRect = handImage != null ? handImage.rectTransform : null;
+
+            Rigidbody diceRb = animatedDiceContext.rigidbody;
+            Transform diceTransform = animatedDiceContext.diceObject != null
+                ? animatedDiceContext.diceObject.transform
+                : (diceRb != null ? diceRb.transform : null);
+            Renderer[] diceRenderers = animatedDiceContext.diceObject != null
+                ? animatedDiceContext.diceObject.GetComponentsInChildren<Renderer>(true)
+                : new Renderer[0];
+            bool releaseDetected = false;
+            bool motionDetected = false;
+            float settleTimer = 0f;
+            bool holdStarted = Input.GetMouseButton(0);
+            float holdStartTime = holdStarted ? Time.time : 0f;
+            float handReleaseStartTime = -1f;
+            float releaseStartTime = -1f;
+            Vector2 lastMousePos = Input.mousePosition;
+            float shakeTravel = 0f;
+            float shakeEnergy = 0f;
+
+            Vector3 flatForward = Vector3.ProjectOnPlane(sceneCamera.transform.forward, Vector3.up).normalized;
+            if (flatForward.sqrMagnitude < 0.001f)
+            {
+                flatForward = Vector3.forward;
+            }
+
+            Vector3 flatRight = Vector3.ProjectOnPlane(sceneCamera.transform.right, Vector3.up).normalized;
+            if (flatRight.sqrMagnitude < 0.001f)
+            {
+                flatRight = Vector3.right;
+            }
+
+            // Randomize setup presets so throw origin can be side, centered, or diagonal.
+            int launchPreset = Random.Range(0, 6);
+            float sideSign = Random.value < 0.5f ? -1f : 1f;
+            float sideDistance;
+            float forwardOffset;
+            float holdHeight;
+            Vector2 handHoldPos;
+            Vector2 handReleasePos;
+            Vector2 nearZeroThrowFallback;
+
+            if (launchPreset <= 1)
+            {
+                // Classic side pickup.
+                sideDistance = Random.Range(1.9f, 2.75f);
+                forwardOffset = Random.Range(-0.65f, 0.55f);
+                holdHeight = Random.Range(11.7f, 12.9f);
+                handHoldPos = new Vector2(sideSign * Random.Range(145f, 205f), Random.Range(82f, 108f));
+                handReleasePos = handHoldPos + new Vector2(-sideSign * Random.Range(120f, 150f), Random.Range(18f, 34f));
+                nearZeroThrowFallback = new Vector2(-sideSign * Random.Range(190f, 235f), Random.Range(16f, 40f));
+            }
+            else if (launchPreset <= 3)
+            {
+                // Near-center "normal" pickup.
+                sideDistance = Random.Range(0.35f, 1.05f) * sideSign;
+                forwardOffset = Random.Range(-0.5f, 0.5f);
+                holdHeight = Random.Range(11.4f, 12.5f);
+                handHoldPos = new Vector2(sideSign * Random.Range(65f, 120f), Random.Range(88f, 116f));
+                handReleasePos = handHoldPos + new Vector2(-sideSign * Random.Range(95f, 128f), Random.Range(16f, 30f));
+                nearZeroThrowFallback = new Vector2(-sideSign * Random.Range(165f, 205f), Random.Range(14f, 30f));
+            }
+            else
+            {
+                // Diagonal pickup (front/back offset) for less predictable trajectories.
+                sideDistance = Random.Range(1.2f, 2.2f) * sideSign;
+                forwardOffset = Random.Range(-1.2f, 1.2f);
+                holdHeight = Random.Range(11.8f, 13.2f);
+                handHoldPos = new Vector2(sideSign * Random.Range(120f, 188f), Random.Range(78f, 122f));
+                handReleasePos = handHoldPos + new Vector2(-sideSign * Random.Range(105f, 148f), Random.Range(20f, 38f));
+                nearZeroThrowFallback = new Vector2(-sideSign * Random.Range(180f, 240f), Random.Range(18f, 45f));
+            }
+
+            Vector3 holdAnchor = animatedDiceContext.boundsCenter
+                + flatRight * sideDistance
+                + flatForward * forwardOffset
+                + Vector3.up * holdHeight;
+            Quaternion holdRotationBase = Quaternion.Euler(
+                Random.Range(12f, 25f),
+                sideSign * Random.Range(14f, 42f),
+                -sideSign * Random.Range(10f, 30f));
+
+            if (diceRb != null)
+            {
+                if (!diceRb.isKinematic)
+                {
+                    diceRb.linearVelocity = Vector3.zero;
+                    diceRb.angularVelocity = Vector3.zero;
+                }
+                diceRb.isKinematic = true;
+            }
+
+            SetDiceRenderersVisible(diceRenderers, false);
+
+            while (true)
+            {
+                if (animatedDiceContext.root == null || diceRb == null || diceTransform == null)
+                {
+                    break;
+                }
+
+                Vector3 pos = diceRb.position;
+                bool isOutOfArena = pos.y < animatedDiceContext.floorY - 6f;
+                if (isOutOfArena)
+                {
+                    if (releaseDetected)
+                    {
+                        break;
+                    }
+
+                    if (!diceRb.isKinematic)
+                    {
+                        diceRb.linearVelocity = Vector3.zero;
+                        diceRb.angularVelocity = Vector3.zero;
+                    }
+                    diceRb.isKinematic = true;
+                    diceRb.position = holdAnchor;
+                    diceTransform.rotation = holdRotationBase;
+                    releaseDetected = false;
+                    holdStarted = false;
+                    motionDetected = false;
+                    settleTimer = 0f;
+                    holdStartTime = 0f;
+                    handReleaseStartTime = -1f;
+                    releaseStartTime = -1f;
+                    lastMousePos = Input.mousePosition;
+                    shakeTravel = 0f;
+                    shakeEnergy = 0f;
+                    SetDiceRenderersVisible(diceRenderers, false);
+                    if (handImage != null)
+                    {
+                        handImage.color = Color.white;
+                    }
+                    if (handRect != null)
+                    {
+                        handRect.anchoredPosition = handHoldPos;
+                        handRect.localRotation = Quaternion.identity;
+                    }
+                    hintText.text = "Hold left mouse to shake up power, release to throw";
+                }
+
+                if (!releaseDetected)
+                {
+                    SetDiceRenderersVisible(diceRenderers, false);
+
+                    if (!holdStarted && (Input.GetMouseButtonDown(0) || Input.GetMouseButton(0)))
+                    {
+                        holdStarted = true;
+                        holdStartTime = Time.time;
+                        lastMousePos = Input.mousePosition;
+                        shakeTravel = 0f;
+                        shakeEnergy = 0f;
+                    }
+
+                    float timeCharge = holdStarted ? Mathf.Clamp01((Time.time - holdStartTime) / 0.95f) : 0f;
+                    if (holdStarted && Input.GetMouseButton(0))
+                    {
+                        Vector2 currentMousePos = Input.mousePosition;
+                        Vector2 mouseDelta = currentMousePos - lastMousePos;
+                        float deltaMagnitude = mouseDelta.magnitude;
+                        shakeTravel = Mathf.Min(shakeTravel + deltaMagnitude, 2000f);
+
+                        float normalizedSpeed = deltaMagnitude / (Mathf.Max(1f, Time.deltaTime) * 1100f);
+                        shakeEnergy = Mathf.Clamp01(shakeEnergy * 0.88f + normalizedSpeed * 0.2f);
+                        lastMousePos = currentMousePos;
+                    }
+                    else
+                    {
+                        shakeEnergy = Mathf.Max(0f, shakeEnergy - Time.deltaTime * 1.6f);
+                    }
+
+                    float shakeCharge = Mathf.Clamp01(shakeTravel / 540f);
+                    float holdCharge = Mathf.Clamp01(timeCharge * 0.35f + shakeCharge * 0.65f);
+                    float shakeTime = Time.time * 24f;
+                    float worldShakeScale = 0.06f + holdCharge * 0.36f;
+                    Vector3 worldShake = flatRight * Mathf.Sin(shakeTime * 1.9f) * worldShakeScale
+                        + flatForward * Mathf.Cos(shakeTime * 1.4f) * worldShakeScale * 0.75f
+                        + Vector3.up * Mathf.Abs(Mathf.Sin(shakeTime * 2.8f)) * worldShakeScale * 0.35f;
+
+                    diceRb.position = holdAnchor + worldShake;
+                    diceTransform.rotation = holdRotationBase * Quaternion.Euler(
+                        Mathf.Sin(shakeTime * 2.3f) * (8f + holdCharge * 18f),
+                        shakeTime * (6f + holdCharge * 18f),
+                        Mathf.Cos(shakeTime * 1.7f) * (5f + holdCharge * 12f));
+
+                    if (handRect != null)
+                    {
+                        Vector2 targetHandPos = new Vector2(
+                            Mathf.Clamp(Input.mousePosition.x - Screen.width * 0.5f, -300f, 300f),
+                            Mathf.Clamp(Input.mousePosition.y, 70f, Screen.height * 0.58f));
+
+                        Vector2 handShake = new Vector2(
+                            Mathf.Sin(shakeTime * 1.5f),
+                            Mathf.Cos(shakeTime * 1.2f)) * (4f + holdCharge * 18f);
+                        Vector2 handBasePos = holdStarted ? Vector2.Lerp(handRect.anchoredPosition, targetHandPos, 0.2f) : handHoldPos;
+                        handRect.anchoredPosition = handBasePos + handShake;
+                        handRect.localRotation = Quaternion.Euler(0f, 0f, -6f + Mathf.Sin(shakeTime * 1.3f) * (2f + holdCharge * 7f));
+                    }
+
+                    if (holdStarted && Input.GetMouseButtonUp(0))
+                    {
+                        releaseDetected = true;
+                        handReleaseStartTime = Time.time;
+                        releaseStartTime = Time.time;
+                        hintText.text = string.Empty;
+
+                        Vector2 releaseHandUiPos = handRect != null ? handRect.anchoredPosition : handHoldPos;
+                        handHoldPos = releaseHandUiPos;
+                        handReleasePos = releaseHandUiPos + new Vector2(-sideSign * Random.Range(118f, 154f), Random.Range(16f, 36f));
+                        Vector2 releaseHandScreenPos = new Vector2(
+                            Screen.width * 0.5f + releaseHandUiPos.x,
+                            Mathf.Max(8f, releaseHandUiPos.y));
+
+                        float handPlaneY = holdAnchor.y + 0.05f;
+                        Plane handThrowPlane = new Plane(Vector3.up, new Vector3(0f, handPlaneY, 0f));
+
+                        Ray handRay = sceneCamera.ScreenPointToRay(releaseHandScreenPos);
+                        Vector3 releasePoint = holdAnchor;
+                        if (handThrowPlane.Raycast(handRay, out float handHitDist))
+                        {
+                            releasePoint = handRay.GetPoint(handHitDist);
+                        }
+                        releasePoint += Vector3.up * 0.06f;
+
+                        Vector2 targetScreenPos = Input.mousePosition;
+                        Vector2 releaseToMouse = targetScreenPos - releaseHandScreenPos;
+                        if (releaseToMouse.sqrMagnitude < 64f)
+                        {
+                            // Avoid near-zero throws if the cursor is too close to the release point.
+                            targetScreenPos = releaseHandScreenPos + nearZeroThrowFallback;
+                        }
+                        Ray targetRay = sceneCamera.ScreenPointToRay(targetScreenPos);
+                        Vector3 targetPoint = releasePoint + flatRight;
+                        if (handThrowPlane.Raycast(targetRay, out float targetHitDist))
+                        {
+                            targetPoint = targetRay.GetPoint(targetHitDist);
+                        }
+
+                        int throwStyle = Random.Range(0, 5);
+                        Vector3 styleOffset = Vector3.zero;
+                        if (throwStyle == 1)
+                        {
+                            // Side skim toward walls.
+                            styleOffset = flatRight * sideSign * Random.Range(0.9f, 1.7f);
+                        }
+                        else if (throwStyle == 2)
+                        {
+                            // Counter-side cross throw.
+                            styleOffset = flatRight * -sideSign * Random.Range(0.8f, 1.5f) + flatForward * Random.Range(-0.3f, 0.5f);
+                        }
+                        else if (throwStyle == 3)
+                        {
+                            // Forward-heavy push.
+                            styleOffset = flatForward * Random.Range(0.9f, 1.7f);
+                        }
+                        else if (throwStyle == 4)
+                        {
+                            // Slight backward/diagonal pull.
+                            styleOffset = flatForward * Random.Range(-1.2f, -0.35f) + flatRight * sideSign * Random.Range(0.35f, 1.1f);
+                        }
+
+                        Vector3 throwDir = Vector3.ProjectOnPlane((targetPoint + styleOffset) - releasePoint, Vector3.up);
+                        if (throwDir.sqrMagnitude < 0.0001f)
+                        {
+                            throwDir = (flatRight * -sideSign) + (flatForward * Random.Range(-0.08f, 0.12f));
+                        }
+                        throwDir.Normalize();
+
+                        float forceFromShake = Mathf.Lerp(0.62f, 1.45f, holdCharge);
+                        float throwImpulse = Mathf.Lerp(5.4f, 9.8f, holdCharge) * forceFromShake * Random.Range(0.92f, 1.14f);
+                        float upImpulse = Mathf.Lerp(1.15f, 2.25f, holdCharge) * Mathf.Lerp(0.92f, 1.22f, holdCharge) * Random.Range(0.9f, 1.16f);
+                        Vector3 spinAxis = Vector3.Cross(Vector3.up, throwDir).normalized;
+                        Vector3 throwSpin = spinAxis * Mathf.Lerp(5f, 9f, holdCharge)
+                            + Vector3.up * Mathf.Lerp(7f, 13f, holdCharge);
+                        throwSpin += Random.onUnitSphere * Random.Range(2.4f, 6.4f) * Mathf.Lerp(0.8f, 1.35f, holdCharge);
+                        Quaternion randomizedReleaseRotation = Random.rotationUniform;
+
+                        SetDiceRenderersVisible(diceRenderers, true);
+                        diceRb.isKinematic = false;
+                        diceRb.useGravity = true;
+                        diceRb.position = releasePoint;
+                        diceTransform.rotation = randomizedReleaseRotation;
+                        diceRb.rotation = randomizedReleaseRotation;
+                        diceRb.linearVelocity = Vector3.zero;
+                        diceRb.angularVelocity = Vector3.zero;
+                        diceRb.AddForce(throwDir * throwImpulse + Vector3.up * upImpulse, ForceMode.Impulse);
+                        diceRb.AddTorque(throwSpin, ForceMode.Impulse);
+                        diceRb.WakeUp();
+                    }
+                }
+
+                if (releaseDetected)
+                {
+                    if (releaseStartTime > 0f && Time.time - releaseStartTime >= 6.5f)
+                    {
+                        break;
+                    }
+
+                    if (handImage != null && handRect != null && handReleaseStartTime >= 0f)
+                    {
+                        float releaseT = Mathf.Clamp01((Time.time - handReleaseStartTime) / 0.18f);
+                        handRect.anchoredPosition = Vector2.Lerp(handHoldPos, handReleasePos, releaseT);
+                        handRect.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(-10f, -24f, releaseT));
+                        handImage.color = new Color(1f, 1f, 1f, 1f - releaseT);
+                        if (releaseT >= 1f)
+                        {
+                            Destroy(handImage.gameObject);
+                            handImage = null;
+                            handRect = null;
+                        }
+                    }
+
+                    float linearSpeed = diceRb.linearVelocity.magnitude;
+                    float angularSpeed = diceRb.angularVelocity.magnitude;
+                    if (linearSpeed > 0.2f || angularSpeed > 0.2f)
+                    {
+                        motionDetected = true;
+                    }
+
+                    if (motionDetected)
+                    {
+                        bool looksSettled = diceRb.IsSleeping()
+                            || (linearSpeed < 0.08f && angularSpeed < 0.08f);
+
+                        settleTimer = looksSettled ? settleTimer + Time.deltaTime : 0f;
+                        if (settleTimer >= 0.55f)
+                        {
+                            break;
+                        }
+                    }
+                }
+
+                yield return null;
+            }
+
+            if (diceRb != null)
+            {
+                if (!diceRb.isKinematic)
+                {
+                    diceRb.linearVelocity = Vector3.zero;
+                    diceRb.angularVelocity = Vector3.zero;
+                }
+
+                diceRb.useGravity = false;
+                diceRb.isKinematic = true;
+            }
+
+            int finalRoll = animatedDiceContext.diceStats != null
+                ? Mathf.Clamp(animatedDiceContext.diceStats.side, 1, 6)
+                : DiceRoller.RollD6();
+
+            resultText.text = $"Result: {finalRoll}";
+            Debug.Log($"City '{linkedCity?.cityName}' Build new city roll: {finalRoll}");
+
+            yield return new WaitForSeconds(2.5f);
+
+            sceneCamera.transform.position = originalCamPos;
+            sceneCamera.transform.rotation = originalCamRot;
+            sceneCamera.fieldOfView = originalCamFov;
+            sceneCamera.orthographic = originalCamOrtho;
+
+            animatedDiceContext.Dispose();
+            activeDiceWorldRoot = null;
+
+            if (activeDiceOverlay == overlayObj)
+            {
+                Destroy(activeDiceOverlay);
+                activeDiceOverlay = null;
+            }
+        }
+
+        private static TextMeshProUGUI CreateDiceText(Transform parent, string objectName, float fontSize, Vector2 anchoredPosition)
+        {
+            GameObject textObj = new GameObject(objectName);
+            textObj.transform.SetParent(parent, false);
+
+            RectTransform rect = textObj.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = anchoredPosition;
+            rect.sizeDelta = new Vector2(760f, 80f);
+
+            TextMeshProUGUI text = textObj.AddComponent<TextMeshProUGUI>();
+            text.fontSize = fontSize;
+            text.alignment = TextAlignmentOptions.Center;
+            text.fontStyle = FontStyles.Bold;
+            text.color = Color.white;
+            return text;
+        }
+
+        private static Image CreateDiceHandImage(Transform parent)
+        {
+            if (diceHandSprite == null)
+            {
+                diceHandSprite = CreateDiceHandSprite();
+            }
+
+            if (diceHandSprite == null)
+            {
+                return null;
+            }
+
+            GameObject handObj = new GameObject("DiceHand");
+            handObj.transform.SetParent(parent, false);
+
+            RectTransform rect = handObj.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0f);
+            rect.anchorMax = new Vector2(0.5f, 0f);
+            rect.pivot = new Vector2(0.5f, 0.08f);
+            rect.anchoredPosition = new Vector2(-170f, 92f);
+            rect.sizeDelta = new Vector2(240f, 280f);
+
+            Image image = handObj.AddComponent<Image>();
+            image.sprite = diceHandSprite;
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+            return image;
+        }
+
+        private static AnimatedDiceWorldContext TryCreateAnimatedD6WorldRoller(Camera sceneCamera, Vector2 preferredScreenPoint)
+        {
+#if UNITY_EDITOR
+            const float trayForwardOffset = 18f;
+            const float diceSpawnHeight = 3.2f;
+            const float dicePickupHeight = 10.5f;
+
+            GameObject prefab = TryLoadAnimatedD6Prefab();
+            if (prefab == null)
+            {
+                return null;
+            }
+
+            Plane worldFloor = new Plane(Vector3.up, Vector3.zero);
+            Ray cityRay = sceneCamera.ViewportPointToRay(new Vector3(0.5f, 0.42f, 0f));
+            float rayHitDist;
+            Vector3 floorCenter;
+            if (worldFloor.Raycast(cityRay, out rayHitDist))
+            {
+                floorCenter = cityRay.GetPoint(rayHitDist);
+            }
+            else
+            {
+                Ray fallbackRay = sceneCamera.ViewportPointToRay(new Vector3(0.5f, 0.35f, 0f));
+                floorCenter = worldFloor.Raycast(fallbackRay, out rayHitDist)
+                    ? fallbackRay.GetPoint(rayHitDist)
+                    : new Vector3(sceneCamera.transform.position.x, 0f, sceneCamera.transform.position.z);
+            }
+
+            // Push the tray farther from the camera for a "table a few feet away" feel.
+            Vector3 forwardFlat = Vector3.ProjectOnPlane(sceneCamera.transform.forward, Vector3.up).normalized;
+            if (forwardFlat.sqrMagnitude < 0.001f)
+            {
+                forwardFlat = Vector3.forward;
+            }
+            floorCenter += forwardFlat * trayForwardOffset;
+
+            GameObject rootInstance = new GameObject("AnimatedDiceD6Runtime");
+            rootInstance.transform.position = floorCenter;
+
+            GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            floor.name = "DiceFloor";
+            floor.transform.SetParent(rootInstance.transform, false);
+            floor.transform.position = floorCenter;
+            floor.transform.rotation = Quaternion.identity;
+            floor.transform.localScale = new Vector3(20f, 0.3f, 20f);
+            PhysicsMaterial arenaPhysicsMaterial = CreateRuntimeArenaPhysicsMaterial();
+            PhysicsMaterial arenaWallPhysicsMaterial = CreateRuntimeArenaWallPhysicsMaterial();
+            Renderer floorRenderer = floor.GetComponent<Renderer>();
+            Material floorMaterial = CreateRuntimeDiceMaterial(new Color(0.07f, 0.24f, 0.10f, 1f));
+            if (floorRenderer != null && floorMaterial != null)
+            {
+                floorRenderer.sharedMaterial = floorMaterial;
+                // Keep collider active for physics, but hide floor mesh so only your world ground is visible.
+                floorRenderer.enabled = false;
+            }
+
+            Collider floorCollider = floor.GetComponent<Collider>();
+            if (floorCollider != null && arenaPhysicsMaterial != null)
+            {
+                floorCollider.sharedMaterial = arenaPhysicsMaterial;
+            }
+
+            float halfExtent = 9.5f;
+            float wallLength = halfExtent * 2f + 0.3f;
+            float wallHalfHeight = DiceArenaWallHeight * 0.5f;
+            CreateDiceArenaWall(rootInstance.transform, floorCenter + Vector3.right * halfExtent + Vector3.up * wallHalfHeight, Quaternion.identity, new Vector3(0.9f, DiceArenaWallHeight, wallLength), arenaWallPhysicsMaterial);
+            CreateDiceArenaWall(rootInstance.transform, floorCenter - Vector3.right * halfExtent + Vector3.up * wallHalfHeight, Quaternion.identity, new Vector3(0.9f, DiceArenaWallHeight, wallLength), arenaWallPhysicsMaterial);
+            CreateDiceArenaWall(rootInstance.transform, floorCenter + Vector3.forward * halfExtent + Vector3.up * wallHalfHeight, Quaternion.identity, new Vector3(wallLength, DiceArenaWallHeight, 0.9f), arenaWallPhysicsMaterial);
+            CreateDiceArenaWall(rootInstance.transform, floorCenter - Vector3.forward * halfExtent + Vector3.up * wallHalfHeight, Quaternion.identity, new Vector3(wallLength, DiceArenaWallHeight, 0.9f), arenaWallPhysicsMaterial);
+
+            // Add explicit corner posts so corner impacts always produce a solid collision response.
+            float cornerY = floorCenter.y + wallHalfHeight;
+            float cornerSize = 1.15f;
+            CreateDiceArenaCorner(rootInstance.transform, floorCenter + new Vector3(halfExtent, cornerY, halfExtent), cornerSize, arenaWallPhysicsMaterial, DiceArenaWallHeight);
+            CreateDiceArenaCorner(rootInstance.transform, floorCenter + new Vector3(-halfExtent, cornerY, halfExtent), cornerSize, arenaWallPhysicsMaterial, DiceArenaWallHeight);
+            CreateDiceArenaCorner(rootInstance.transform, floorCenter + new Vector3(halfExtent, cornerY, -halfExtent), cornerSize, arenaWallPhysicsMaterial, DiceArenaWallHeight);
+            CreateDiceArenaCorner(rootInstance.transform, floorCenter + new Vector3(-halfExtent, cornerY, -halfExtent), cornerSize, arenaWallPhysicsMaterial, DiceArenaWallHeight);
+
+            GameObject diceInstance = Object.Instantiate(prefab, floorCenter + Vector3.up * diceSpawnHeight, Quaternion.identity);
+            diceInstance.name = "AnimatedDiceD6";
+            diceInstance.transform.SetParent(rootInstance.transform, true);
+            diceInstance.transform.localScale *= 0.72f;
+            List<Material> runtimeDiceMaterials = CreateTransparentDiceNumberMaterials(diceInstance);
+
+            // The bought asset includes DiceHighlight for animated top-face number feedback.
+            DiceHighlight highlight = diceInstance.GetComponent<DiceHighlight>();
+            if (highlight != null)
+            {
+                highlight.enabled = true;
+            }
+
+            DiceStats diceStats = diceInstance.GetComponent<DiceStats>();
+            Rigidbody rigidbody = diceInstance.GetComponent<Rigidbody>();
+            if (rigidbody == null)
+            {
+                Object.Destroy(rootInstance);
+                if (floorMaterial != null)
+                {
+                    Object.Destroy(floorMaterial);
+                }
+                if (arenaPhysicsMaterial != null)
+                {
+                    Object.Destroy(arenaPhysicsMaterial);
+                }
+                if (arenaWallPhysicsMaterial != null)
+                {
+                    Object.Destroy(arenaWallPhysicsMaterial);
+                }
+                return null;
+            }
+
+            rigidbody.useGravity = true;
+            rigidbody.linearVelocity = Vector3.zero;
+            rigidbody.angularVelocity = Vector3.zero;
+            rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            rigidbody.maxAngularVelocity = 65f;
+            rigidbody.linearDamping = 0.08f;
+            rigidbody.angularDamping = 0.1f;
+            rigidbody.WakeUp();
+
+            RollDrop rollDrop = rootInstance.AddComponent<RollDrop>();
+            SetPrivateField(rollDrop, "diceGroup", new List<GameObject> { diceInstance });
+            SetPrivateField(rollDrop, "pickUpHeight", floorCenter.y + dicePickupHeight);
+            SetPrivateField(rollDrop, "followStrength", 32f);
+            SetPrivateField(rollDrop, "maxFollowSpeed", 30f);
+            SetPrivateField(rollDrop, "minThrowSpeed", 8f);
+            SetPrivateField(rollDrop, "maxThrowSpeed", 30f);
+            SetPrivateField(rollDrop, "throwUpBoost", 3.2f);
+            SetPrivateField(rollDrop, "throwTorqueStrength", 24f);
+            SetPrivateField(rollDrop, "chargeDuration", 0.9f);
+            SetPrivateField(rollDrop, "holdShakePosition", 0.75f);
+            SetPrivateField(rollDrop, "holdShakeTorque", 24f);
+            SetPrivateField(rollDrop, "cam", sceneCamera);
+            rollDrop.enabled = false;
+
+            GameObject keyLightObj = new GameObject("AnimatedDiceKeyLight");
+            keyLightObj.transform.SetParent(rootInstance.transform, false);
+            keyLightObj.transform.position = floorCenter + new Vector3(2f, 5f, -2f);
+            keyLightObj.transform.rotation = Quaternion.Euler(55f, -40f, 0f);
+            Light keyLight = keyLightObj.AddComponent<Light>();
+            keyLight.type = LightType.Directional;
+            keyLight.intensity = 1.15f;
+            keyLight.color = new Color(1f, 0.97f, 0.9f, 1f);
+
+            GameObject fillLightObj = new GameObject("AnimatedDiceFillLight");
+            fillLightObj.transform.SetParent(rootInstance.transform, false);
+            fillLightObj.transform.position = floorCenter + new Vector3(-2.8f, 3.8f, 2.2f);
+            fillLightObj.transform.rotation = Quaternion.Euler(42f, 140f, 0f);
+            Light fillLight = fillLightObj.AddComponent<Light>();
+            fillLight.type = LightType.Directional;
+            fillLight.intensity = 0.65f;
+            fillLight.color = new Color(0.85f, 0.92f, 1f, 1f);
+
+            return new AnimatedDiceWorldContext
+            {
+                root = rootInstance,
+                diceObject = diceInstance,
+                diceStats = diceStats,
+                rigidbody = rigidbody,
+                rollDrop = rollDrop,
+                floorMaterial = floorMaterial,
+                arenaPhysicsMaterial = arenaPhysicsMaterial,
+                arenaWallPhysicsMaterial = arenaWallPhysicsMaterial,
+                runtimeDiceMaterials = runtimeDiceMaterials,
+                boundsCenter = floorCenter,
+                boundsHalfExtent = halfExtent,
+                floorY = floorCenter.y + 0.15f
+            };
+#else
+            return null;
+#endif
+        }
+
+        private static GameObject TryLoadAnimatedD6Prefab()
+        {
+#if UNITY_EDITOR
+            for (int i = 0; i < animatedDiceD6PrefabPaths.Length; i++)
+            {
+                GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(animatedDiceD6PrefabPaths[i]);
+                if (prefab != null)
+                {
+                    return prefab;
+                }
+            }
+#endif
+
+            return null;
+        }
+
+        private static void CreateDiceArenaWall(Transform parent, Vector3 position, Quaternion rotation, Vector3 scale, PhysicsMaterial physicsMaterial)
+        {
+            GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            wall.name = "DiceWall";
+            wall.transform.SetParent(parent, false);
+            wall.transform.position = position;
+            wall.transform.rotation = rotation;
+            wall.transform.localScale = scale;
+
+            Collider collider = wall.GetComponent<Collider>();
+            if (collider != null && physicsMaterial != null)
+            {
+                collider.sharedMaterial = physicsMaterial;
+            }
+
+            Renderer renderer = wall.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.enabled = false;
+            }
+        }
+
+        private static void RebuildDiceScreenBounds(AnimatedDiceWorldContext context, Camera sceneCamera)
+        {
+            if (context == null || context.root == null || sceneCamera == null)
+            {
+                return;
+            }
+
+            Transform rootTransform = context.root.transform;
+            Transform existing = rootTransform.Find("DiceScreenBounds");
+            if (existing != null)
+            {
+                Object.Destroy(existing.gameObject);
+            }
+
+            GameObject boundsRoot = new GameObject("DiceScreenBounds");
+            boundsRoot.transform.SetParent(rootTransform, false);
+
+            Plane floorPlane = new Plane(Vector3.up, new Vector3(0f, context.floorY, 0f));
+            const float viewportInset = 0.08f;
+            if (!TryGetViewportFloorPoint(sceneCamera, floorPlane, new Vector2(viewportInset, viewportInset), out Vector3 bottomLeft)
+                || !TryGetViewportFloorPoint(sceneCamera, floorPlane, new Vector2(1f - viewportInset, viewportInset), out Vector3 bottomRight)
+                || !TryGetViewportFloorPoint(sceneCamera, floorPlane, new Vector2(viewportInset, 1f - viewportInset), out Vector3 topLeft)
+                || !TryGetViewportFloorPoint(sceneCamera, floorPlane, new Vector2(1f - viewportInset, 1f - viewportInset), out Vector3 topRight))
+            {
+                Object.Destroy(boundsRoot);
+                return;
+            }
+
+            PhysicsMaterial wallMaterial = context.arenaWallPhysicsMaterial != null
+                ? context.arenaWallPhysicsMaterial
+                : context.arenaPhysicsMaterial;
+
+            const float wallHeight = DiceArenaWallHeight;
+            const float wallThickness = 0.95f;
+            const float cornerSize = 1.25f;
+
+            CreateDiceScreenEdge(boundsRoot.transform, "ScreenWallLeft", bottomLeft, topLeft, wallThickness, wallHeight, wallMaterial);
+            CreateDiceScreenEdge(boundsRoot.transform, "ScreenWallRight", bottomRight, topRight, wallThickness, wallHeight, wallMaterial);
+            CreateDiceScreenEdge(boundsRoot.transform, "ScreenWallBottom", bottomLeft, bottomRight, wallThickness, wallHeight, wallMaterial);
+            CreateDiceScreenEdge(boundsRoot.transform, "ScreenWallTop", topLeft, topRight, wallThickness, wallHeight, wallMaterial);
+
+            CreateDiceArenaCorner(boundsRoot.transform, bottomLeft + Vector3.up * (wallHeight * 0.5f), cornerSize, wallMaterial, wallHeight);
+            CreateDiceArenaCorner(boundsRoot.transform, bottomRight + Vector3.up * (wallHeight * 0.5f), cornerSize, wallMaterial, wallHeight);
+            CreateDiceArenaCorner(boundsRoot.transform, topLeft + Vector3.up * (wallHeight * 0.5f), cornerSize, wallMaterial, wallHeight);
+            CreateDiceArenaCorner(boundsRoot.transform, topRight + Vector3.up * (wallHeight * 0.5f), cornerSize, wallMaterial, wallHeight);
+        }
+
+        private static bool TryGetViewportFloorPoint(Camera sceneCamera, Plane floorPlane, Vector2 viewportPos, out Vector3 point)
+        {
+            Ray ray = sceneCamera.ViewportPointToRay(new Vector3(viewportPos.x, viewportPos.y, 0f));
+            if (floorPlane.Raycast(ray, out float hitDist))
+            {
+                point = ray.GetPoint(hitDist);
+                return true;
+            }
+
+            point = Vector3.zero;
+            return false;
+        }
+
+        private static void CreateDiceScreenEdge(Transform parent, string wallName, Vector3 start, Vector3 end, float thickness, float height, PhysicsMaterial physicsMaterial)
+        {
+            Vector3 flatStart = new Vector3(start.x, 0f, start.z);
+            Vector3 flatEnd = new Vector3(end.x, 0f, end.z);
+            Vector3 flatDirection = flatEnd - flatStart;
+            float length = flatDirection.magnitude;
+            if (length < 0.01f)
+            {
+                return;
+            }
+
+            Vector3 center = (start + end) * 0.5f + Vector3.up * (height * 0.5f);
+            Quaternion rotation = Quaternion.LookRotation(flatDirection.normalized, Vector3.up);
+
+            GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            wall.name = wallName;
+            wall.transform.SetParent(parent, false);
+            wall.transform.position = center;
+            wall.transform.rotation = rotation;
+            wall.transform.localScale = new Vector3(thickness, height, length + thickness);
+
+            Collider collider = wall.GetComponent<Collider>();
+            if (collider != null && physicsMaterial != null)
+            {
+                collider.sharedMaterial = physicsMaterial;
+            }
+
+            Renderer renderer = wall.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.enabled = false;
+            }
+        }
+
+        private static void CreateDiceArenaCorner(Transform parent, Vector3 position, float size, PhysicsMaterial physicsMaterial, float height = 4f)
+        {
+            GameObject corner = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            corner.name = "DiceCorner";
+            corner.transform.SetParent(parent, false);
+            corner.transform.position = position;
+            corner.transform.rotation = Quaternion.identity;
+            corner.transform.localScale = new Vector3(size, height, size);
+
+            Collider collider = corner.GetComponent<Collider>();
+            if (collider != null && physicsMaterial != null)
+            {
+                collider.sharedMaterial = physicsMaterial;
+            }
+
+            Renderer renderer = corner.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.enabled = false;
+            }
+        }
+
+        private static PhysicsMaterial CreateRuntimeArenaPhysicsMaterial()
+        {
+            PhysicsMaterial material = new PhysicsMaterial("DiceArenaRuntime");
+            material.dynamicFriction = 0.72f;
+            material.staticFriction = 0.78f;
+            material.bounciness = 0.04f;
+            material.frictionCombine = PhysicsMaterialCombine.Maximum;
+            material.bounceCombine = PhysicsMaterialCombine.Minimum;
+            return material;
+        }
+
+        private static PhysicsMaterial CreateRuntimeArenaWallPhysicsMaterial()
+        {
+            PhysicsMaterial material = new PhysicsMaterial("DiceArenaWallRuntime");
+            material.dynamicFriction = 0.42f;
+            material.staticFriction = 0.5f;
+            material.bounciness = 0.22f;
+            material.frictionCombine = PhysicsMaterialCombine.Average;
+            material.bounceCombine = PhysicsMaterialCombine.Maximum;
+            return material;
+        }
+
+        private static Material CreateRuntimeDiceMaterial(Color color)
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+            {
+                shader = Shader.Find("Standard");
+            }
+
+            if (shader == null)
+            {
+                return null;
+            }
+
+            Material material = new Material(shader);
+            material.color = color;
+            return material;
+        }
+
+        private static void SetPrivateField(object target, string fieldName, object value)
+        {
+            if (target == null || string.IsNullOrEmpty(fieldName))
+            {
+                return;
+            }
+
+            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            if (field != null)
+            {
+                field.SetValue(target, value);
+            }
+        }
+
+        private static void SetDiceRenderersVisible(Renderer[] renderers, bool isVisible)
+        {
+            if (renderers == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                Renderer renderer = renderers[i];
+                if (renderer == null)
+                {
+                    continue;
+                }
+
+                renderer.enabled = isVisible;
+            }
+        }
+
+        private static List<Material> CreateTransparentDiceNumberMaterials(GameObject diceInstance)
+        {
+            List<Material> runtimeMaterials = new List<Material>();
+            if (diceInstance == null)
+            {
+                return runtimeMaterials;
+            }
+
+            Renderer[] renderers = diceInstance.GetComponentsInChildren<Renderer>(true);
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                Renderer renderer = renderers[i];
+                if (renderer == null || renderer.sharedMaterial == null)
+                {
+                    continue;
+                }
+
+                Material source = renderer.sharedMaterial;
+                if (!source.name.Contains("Numbers"))
+                {
+                    continue;
+                }
+
+                Material mat = new Material(source);
+                if (mat.HasProperty("_Surface")) mat.SetFloat("_Surface", 1f);
+                if (mat.HasProperty("_Blend")) mat.SetFloat("_Blend", 0f);
+                if (mat.HasProperty("_SrcBlend")) mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                if (mat.HasProperty("_DstBlend")) mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                if (mat.HasProperty("_SrcBlendAlpha")) mat.SetFloat("_SrcBlendAlpha", (float)UnityEngine.Rendering.BlendMode.One);
+                if (mat.HasProperty("_DstBlendAlpha")) mat.SetFloat("_DstBlendAlpha", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                if (mat.HasProperty("_ZWrite")) mat.SetFloat("_ZWrite", 0f);
+                if (mat.HasProperty("_AlphaClip")) mat.SetFloat("_AlphaClip", 0f);
+                mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+                mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                mat.DisableKeyword("_ALPHATEST_ON");
+                mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+
+                renderer.sharedMaterial = mat;
+                runtimeMaterials.Add(mat);
+            }
+
+            return runtimeMaterials;
         }
 
         public static void CloseActionMenu()
