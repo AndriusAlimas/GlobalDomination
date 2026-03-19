@@ -137,6 +137,18 @@ namespace GlobalDomination.Managers
                 currentPlayerIndex = (currentPlayerIndex + 1) % players.Count;
             }
 
+            Player currentPlayer = GetCurrentPlayer();
+            if (currentPlayer != null && currentPlayer.ownedCities != null)
+            {
+                foreach (City city in currentPlayer.ownedCities)
+                {
+                    if (city != null)
+                    {
+                        city.hasTakenTurn = false;
+                    }
+                }
+            }
+
             Debug.Log($"\n=== Turn: {GetCurrentPlayer().playerName} ===");
         }
 

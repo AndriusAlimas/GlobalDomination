@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.UI;
 
 namespace GlobalDomination.UI
 {
@@ -40,13 +39,8 @@ namespace GlobalDomination.UI
             rollCamera.farClipPlane = 1000f;
             rollCameraObj.tag = "MainCamera";
 
-            GameObject rollCanvasObj = new GameObject("BuildCityRollCanvas");
-            Canvas rollCanvas = rollCanvasObj.AddComponent<Canvas>();
-            rollCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            CanvasScaler scaler = rollCanvasObj.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            rollCanvasObj.AddComponent<GraphicRaycaster>();
+            Canvas rollCanvas = RuntimeUiCanvasHelper.CreateScreenSpaceOverlayCanvas("BuildCityRollCanvas", new Vector2(1920f, 1080f));
+            GameObject rollCanvasObj = rollCanvas.gameObject;
 
             SceneManager.MoveGameObjectToScene(rollCameraObj, rollScene);
             SceneManager.MoveGameObjectToScene(rollCanvasObj, rollScene);

@@ -23,10 +23,15 @@ namespace GlobalDomination.UI
         [SerializeField] private Image cityIcon;
         [SerializeField] private TextMeshProUGUI populationText;
         [SerializeField] private TextMeshProUGUI cityNameText;
+        [SerializeField] private Image cityNameBackground;
         [SerializeField] private Image capitalStarIcon;
         [SerializeField] private Image backgroundCircle;
         [SerializeField] private Image turnStatusDot;
         [SerializeField] private CanvasGroup cityCanvasGroup;
+        [SerializeField] private Color defaultBackgroundColor = Color.white;
+        [SerializeField] private Color defaultCityIconColor = Color.white;
+        [SerializeField] private Color defaultCityNameColor = Color.white;
+        [SerializeField] private Color defaultCityNameBackgroundColor = Color.white;
 
         private static readonly Dictionary<int, Sprite> transparentSpriteCache = new Dictionary<int, Sprite>();
         private static readonly string[] animatedDiceD6PrefabPaths =
@@ -165,6 +170,7 @@ namespace GlobalDomination.UI
             bgImage.gameObject.SetActive(!usingCustomSprite);
             
             cityIconUI.backgroundCircle = bgImage;
+            cityIconUI.defaultBackgroundColor = bgImage.color;
             
             // City icon (building symbol)
             GameObject iconObj = new GameObject("CityIcon");
@@ -186,6 +192,7 @@ namespace GlobalDomination.UI
             iconRect.sizeDelta = new Vector2(citySize * 1.08f * customScaleMultiplier, citySize * 1.08f * customScaleMultiplier);
             
             cityIconUI.cityIcon = cityImage;
+            cityIconUI.defaultCityIconColor = cityImage.color;
             cityIconUI.linkedCity = city;
 
             // Population plate to mimic classic Civ-style center number badge.
@@ -310,16 +317,34 @@ namespace GlobalDomination.UI
             powerTextRect.anchoredPosition = powerPos;
             powerTextRect.sizeDelta = new Vector2(citySize * 0.42f, citySize * 0.24f);
             
+            // City name plate to keep label readable above busy icon art.
+            GameObject nameBgObj = new GameObject("CityNamePlate");
+            nameBgObj.transform.SetParent(container.transform, false);
+            Image nameBg = nameBgObj.AddComponent<Image>();
+            nameBg.sprite = CreateCityNameCardSprite();
+            nameBg.type = Image.Type.Sliced;
+            nameBg.color = city.isCapital
+                ? new Color(0.95f, 0.84f, 0.46f, 0.88f)
+                : new Color(0.88f, 0.94f, 1f, 0.86f);
+
+            RectTransform nameBgRect = nameBgObj.GetComponent<RectTransform>();
+            nameBgRect.anchorMin = new Vector2(0.5f, 0f);
+            nameBgRect.anchorMax = new Vector2(0.5f, 0f);
+            nameBgRect.pivot = new Vector2(0.5f, 0f);
+            nameBgRect.anchoredPosition = new Vector2(0f, 3f);
+            nameBgRect.sizeDelta = new Vector2(containerHeight + 42f, 56f);
+
             // City name text (below icon)
             GameObject nameTextObj = new GameObject("CityNameText");
             nameTextObj.transform.SetParent(container.transform, false);
             TextMeshProUGUI nameText = nameTextObj.AddComponent<TextMeshProUGUI>();
             nameText.text = city.cityName;
-            nameText.fontSize = 18f + (sizeTier * 2f); // Make city name clearly more readable
+            nameText.fontSize = 24f + (sizeTier * 3f); // Bigger city name for stronger readability
             nameText.fontStyle = FontStyles.Bold;
+            nameText.fontWeight = FontWeight.Black;
             nameText.alignment = TextAlignmentOptions.Center;
             nameText.color = new Color(0.06f, 0.07f, 0.1f, 1f);
-            nameText.outlineWidth = 0.2f;
+            nameText.outlineWidth = 0.3f;
             nameText.outlineColor = new Color(1f, 1f, 1f, 0.65f);
             
             RectTransform nameTextRect = nameTextObj.GetComponent<RectTransform>();
@@ -327,9 +352,12 @@ namespace GlobalDomination.UI
             nameTextRect.anchorMax = new Vector2(0.5f, 0f);
             nameTextRect.pivot = new Vector2(0.5f, 0f);
             nameTextRect.anchoredPosition = new Vector2(0f, 5f);
-            nameTextRect.sizeDelta = new Vector2(containerHeight + 20f, 40f);
+            nameTextRect.sizeDelta = new Vector2(containerHeight + 24f, 56f);
             
+            cityIconUI.cityNameBackground = nameBg;
+            cityIconUI.defaultCityNameBackgroundColor = nameBg.color;
             cityIconUI.cityNameText = nameText;
+            cityIconUI.defaultCityNameColor = nameText.color;
             
             // Capital star icon (top-right corner)
             if (city.isCapital)
@@ -371,7 +399,7 @@ namespace GlobalDomination.UI
 
             // Easy turn indicator: dim the whole city icon when this city already took its turn.
             CanvasGroup cityCanvas = container.AddComponent<CanvasGroup>();
-            cityCanvas.alpha = city.hasTakenTurn ? 0.6f : 1f;
+            cityCanvas.alpha = city.hasTakenTurn ? 0.34f : 1f;
             cityIconUI.cityCanvasGroup = cityCanvas;
             
             return cityIconUI;
@@ -1118,6 +1146,14 @@ namespace GlobalDomination.UI
             panelBg.type = Image.Type.Sliced;
             panelBg.color = new Color(0.07f, 0.12f, 0.2f, 0.96f);
 
+            if (linkedCity.hasTakenTurn)
+            {
+                CreateMenuTitle(panelObj.transform, linkedCity.cityName + " already moved");
+                CreateMenuButton(panelObj.transform, new Vector2(0f, 24f), "This city already moved this turn", () => { }, false);
+                CreateMenuButton(panelObj.transform, new Vector2(0f, -34f), "Press Next Turn to use again", () => { }, false);
+                return;
+            }
+
             CreateMenuTitle(panelObj.transform, linkedCity.cityName + " Commands");
 
             bool canBuildNewCity = linkedCity.isCapital;
@@ -1254,6 +1290,43 @@ namespace GlobalDomination.UI
                     {
                         texture.SetPixel(x, y, new Color(0.72f, 0.84f, 1f, 1f));
                     }
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(
+                texture,
+                new Rect(0, 0, width, height),
+                new Vector2(0.5f, 0.5f),
+                100f,
+                0,
+                SpriteMeshType.FullRect,
+                new Vector4(cornerRadius, cornerRadius, cornerRadius, cornerRadius));
+        }
+
+        private static Sprite CreateCityNameCardSprite()
+        {
+            const int width = 224;
+            const int height = 72;
+            const int cornerRadius = 10;
+
+            Texture2D texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.filterMode = FilterMode.Bilinear;
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    bool insideOuter = IsInsideRoundedRect(x, y, width, height, cornerRadius);
+                    bool insideInner = IsInsideRoundedRect(x, y, width - 4, height - 4, cornerRadius - 2, 2, 2);
+
+                    if (!insideOuter)
+                    {
+                        texture.SetPixel(x, y, Color.clear);
+                        continue;
+                    }
+
+                    texture.SetPixel(x, y, insideInner ? Color.white : new Color(0.74f, 0.81f, 0.9f, 1f));
                 }
             }
 
@@ -1767,7 +1840,35 @@ namespace GlobalDomination.UI
 
             if (cityCanvasGroup != null)
             {
-                cityCanvasGroup.alpha = completed ? 0.6f : 1f;
+                cityCanvasGroup.alpha = completed ? 0.34f : 1f;
+            }
+
+            if (backgroundCircle != null)
+            {
+                backgroundCircle.color = completed
+                    ? new Color(0.02f, 0.02f, 0.02f, 0.98f)
+                    : defaultBackgroundColor;
+            }
+
+            if (cityIcon != null)
+            {
+                cityIcon.color = completed
+                    ? new Color(0.5f, 0.5f, 0.5f, 1f)
+                    : defaultCityIconColor;
+            }
+
+            if (cityNameText != null)
+            {
+                cityNameText.color = completed
+                    ? new Color(0.78f, 0.78f, 0.78f, 0.95f)
+                    : defaultCityNameColor;
+            }
+
+            if (cityNameBackground != null)
+            {
+                cityNameBackground.color = completed
+                    ? new Color(0.14f, 0.14f, 0.14f, 0.92f)
+                    : defaultCityNameBackgroundColor;
             }
 
             if (turnStatusDot != null)

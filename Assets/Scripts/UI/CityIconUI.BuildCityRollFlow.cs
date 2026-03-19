@@ -9,6 +9,20 @@ namespace GlobalDomination.UI
     {
         private void OnActionClicked(string actionName)
         {
+            if (linkedCity == null)
+            {
+                return;
+            }
+
+            if (linkedCity.hasTakenTurn)
+            {
+                Debug.Log($"City '{linkedCity.cityName}' already moved this turn.");
+                CloseActionMenu();
+                return;
+            }
+
+            SetTurnCompleted(true);
+
             if (actionName == "Build new city")
             {
                 CloseActionMenu();
@@ -116,7 +130,6 @@ namespace GlobalDomination.UI
             float releaseStartTime = -1f;
             Vector2 lastMousePos = Input.mousePosition;
             float shakeTravel = 0f;
-            float shakeEnergy = 0f;
 
             Vector3 flatForward = Vector3.ProjectOnPlane(sceneCamera.transform.forward, Vector3.up).normalized;
             if (flatForward.sqrMagnitude < 0.001f)
@@ -130,51 +143,16 @@ namespace GlobalDomination.UI
                 flatRight = Vector3.right;
             }
 
-            // Randomize setup presets so throw origin can be side, centered, or diagonal.
-            int launchPreset = Random.Range(0, 6);
-            float sideSign = Random.value < 0.5f ? -1f : 1f;
-            float sideDistance;
-            float forwardOffset;
-            float holdHeight;
-            Vector2 handHoldPos;
-            Vector2 handReleasePos;
-            Vector2 nearZeroThrowFallback;
-
-            if (launchPreset <= 1)
-            {
-                // Classic side pickup.
-                sideDistance = Random.Range(1.9f, 2.75f);
-                forwardOffset = Random.Range(-0.65f, 0.55f);
-                holdHeight = Random.Range(11.7f, 12.9f);
-                handHoldPos = new Vector2(sideSign * Random.Range(145f, 205f), Random.Range(82f, 108f));
-                handReleasePos = handHoldPos + new Vector2(-sideSign * Random.Range(120f, 150f), Random.Range(18f, 34f));
-                nearZeroThrowFallback = new Vector2(-sideSign * Random.Range(190f, 235f), Random.Range(16f, 40f));
-            }
-            else if (launchPreset <= 3)
-            {
-                // Near-center "normal" pickup.
-                sideDistance = Random.Range(0.35f, 1.05f) * sideSign;
-                forwardOffset = Random.Range(-0.5f, 0.5f);
-                holdHeight = Random.Range(11.4f, 12.5f);
-                handHoldPos = new Vector2(sideSign * Random.Range(65f, 120f), Random.Range(88f, 116f));
-                handReleasePos = handHoldPos + new Vector2(-sideSign * Random.Range(95f, 128f), Random.Range(16f, 30f));
-                nearZeroThrowFallback = new Vector2(-sideSign * Random.Range(165f, 205f), Random.Range(14f, 30f));
-            }
-            else
-            {
-                // Diagonal pickup (front/back offset) for less predictable trajectories.
-                sideDistance = Random.Range(1.2f, 2.2f) * sideSign;
-                forwardOffset = Random.Range(-1.2f, 1.2f);
-                holdHeight = Random.Range(11.8f, 13.2f);
-                handHoldPos = new Vector2(sideSign * Random.Range(120f, 188f), Random.Range(78f, 122f));
-                handReleasePos = handHoldPos + new Vector2(-sideSign * Random.Range(105f, 148f), Random.Range(20f, 38f));
-                nearZeroThrowFallback = new Vector2(-sideSign * Random.Range(180f, 240f), Random.Range(18f, 45f));
-            }
+            DiceRoller.BuildCityLaunchProfile launchProfile = DiceRoller.CreateBuildCityLaunchProfile();
+            float sideSign = launchProfile.sideSign;
+            Vector2 handHoldPos = launchProfile.handHoldPos;
+            Vector2 handReleasePos = launchProfile.handReleasePos;
+            Vector2 nearZeroThrowFallback = launchProfile.nearZeroThrowFallback;
 
             Vector3 holdAnchor = animatedDiceContext.boundsCenter
-                + flatRight * sideDistance
-                + flatForward * forwardOffset
-                + Vector3.up * holdHeight;
+                + flatRight * launchProfile.sideDistance
+                + flatForward * launchProfile.forwardOffset
+                + Vector3.up * launchProfile.holdHeight;
             Quaternion holdRotationBase = Quaternion.Euler(
                 Random.Range(12f, 25f),
                 sideSign * Random.Range(14f, 42f),
@@ -225,7 +203,6 @@ namespace GlobalDomination.UI
                     releaseStartTime = -1f;
                     lastMousePos = Input.mousePosition;
                     shakeTravel = 0f;
-                    shakeEnergy = 0f;
                     SetDiceRenderersVisible(diceRenderers, false);
                     if (handImage != null)
                     {
@@ -249,7 +226,6 @@ namespace GlobalDomination.UI
                         holdStartTime = Time.time;
                         lastMousePos = Input.mousePosition;
                         shakeTravel = 0f;
-                        shakeEnergy = 0f;
                     }
 
                     float timeCharge = holdStarted ? Mathf.Clamp01((Time.time - holdStartTime) / 0.95f) : 0f;
@@ -259,14 +235,7 @@ namespace GlobalDomination.UI
                         Vector2 mouseDelta = currentMousePos - lastMousePos;
                         float deltaMagnitude = mouseDelta.magnitude;
                         shakeTravel = Mathf.Min(shakeTravel + deltaMagnitude, 2000f);
-
-                        float normalizedSpeed = deltaMagnitude / (Mathf.Max(1f, Time.deltaTime) * 1100f);
-                        shakeEnergy = Mathf.Clamp01(shakeEnergy * 0.88f + normalizedSpeed * 0.2f);
                         lastMousePos = currentMousePos;
-                    }
-                    else
-                    {
-                        shakeEnergy = Mathf.Max(0f, shakeEnergy - Time.deltaTime * 1.6f);
                     }
 
                     float shakeCharge = Mathf.Clamp01(shakeTravel / 540f);
@@ -366,25 +335,18 @@ namespace GlobalDomination.UI
                         }
                         throwDir.Normalize();
 
-                        float forceFromShake = Mathf.Lerp(0.62f, 1.45f, holdCharge);
-                        float throwImpulse = Mathf.Lerp(5.4f, 9.8f, holdCharge) * forceFromShake * Random.Range(0.92f, 1.14f);
-                        float upImpulse = Mathf.Lerp(1.15f, 2.25f, holdCharge) * Mathf.Lerp(0.92f, 1.22f, holdCharge) * Random.Range(0.9f, 1.16f);
-                        Vector3 spinAxis = Vector3.Cross(Vector3.up, throwDir).normalized;
-                        Vector3 throwSpin = spinAxis * Mathf.Lerp(5f, 9f, holdCharge)
-                            + Vector3.up * Mathf.Lerp(7f, 13f, holdCharge);
-                        throwSpin += Random.onUnitSphere * Random.Range(2.4f, 6.4f) * Mathf.Lerp(0.8f, 1.35f, holdCharge);
-                        Quaternion randomizedReleaseRotation = Random.rotationUniform;
+                        DiceRoller.ThrowForceProfile throwForces = DiceRoller.CreateThrowForceProfile(throwDir, holdCharge);
 
                         SetDiceRenderersVisible(diceRenderers, true);
                         diceRb.isKinematic = false;
                         diceRb.useGravity = true;
                         diceRb.position = releasePoint;
-                        diceTransform.rotation = randomizedReleaseRotation;
-                        diceRb.rotation = randomizedReleaseRotation;
+                        diceTransform.rotation = throwForces.releaseRotation;
+                        diceRb.rotation = throwForces.releaseRotation;
                         diceRb.linearVelocity = Vector3.zero;
                         diceRb.angularVelocity = Vector3.zero;
-                        diceRb.AddForce(throwDir * throwImpulse + Vector3.up * upImpulse, ForceMode.Impulse);
-                        diceRb.AddTorque(throwSpin, ForceMode.Impulse);
+                        diceRb.AddForce(throwDir * throwForces.throwImpulse + Vector3.up * throwForces.upImpulse, ForceMode.Impulse);
+                        diceRb.AddTorque(throwForces.throwSpin, ForceMode.Impulse);
                         diceRb.WakeUp();
                     }
                 }
@@ -445,9 +407,7 @@ namespace GlobalDomination.UI
                 diceRb.isKinematic = true;
             }
 
-            int finalRoll = animatedDiceContext.diceStats != null
-                ? Mathf.Clamp(animatedDiceContext.diceStats.side, 1, 6)
-                : DiceRoller.RollD6();
+            int finalRoll = DiceRoller.ResolveAnimatedD6Result(animatedDiceContext.diceStats != null ? animatedDiceContext.diceStats.side : -1);
 
             resultText.text = $"Result: {finalRoll}";
             Debug.Log($"City '{linkedCity?.cityName}' Build new city roll: {finalRoll}");

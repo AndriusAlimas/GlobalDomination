@@ -9,8 +9,10 @@ namespace GlobalDomination.GameData
     /// </summary>
     public static class BuildingRollTable
     {
+        private const int DiceFaces = 6;
+
         // 6x6 building table - first dimension is first dice roll, second is second dice roll
-        private static readonly BuildingType[,] rollTable = new BuildingType[6, 6]
+        private static readonly BuildingType[,] rollTable = new BuildingType[DiceFaces, DiceFaces]
         {
             // First roll = 1
             { BuildingType.Barack, BuildingType.Machinery, BuildingType.None, BuildingType.MoneyBuilder, BuildingType.Farm, BuildingType.Workshop },
@@ -51,17 +53,11 @@ namespace GlobalDomination.GameData
         /// <returns>A new Building instance, or null if the roll results in None.</returns>
         public static Building GetBuildingFromRoll(int firstRoll, int secondRoll)
         {
-            // Convert from 1-indexed dice rolls to 0-indexed array
-            int categoryIndex = firstRoll - 1;
-            int buildingIndex = secondRoll - 1;
-
-            if (categoryIndex < 0 || categoryIndex >= 6 || buildingIndex < 0 || buildingIndex >= 6)
+            if (!TryGetBuildingType(firstRoll, secondRoll, out BuildingType type))
             {
                 Debug.LogWarning($"Invalid dice roll values: {firstRoll}, {secondRoll}");
                 return null;
             }
-
-            BuildingType type = rollTable[categoryIndex, buildingIndex];
             
             if (type == BuildingType.None)
             {
@@ -96,6 +92,25 @@ namespace GlobalDomination.GameData
             }
 
             return building;
+        }
+
+        private static bool TryGetBuildingType(int firstRoll, int secondRoll, out BuildingType type)
+        {
+            type = BuildingType.None;
+            if (!IsValidRoll(firstRoll) || !IsValidRoll(secondRoll))
+            {
+                return false;
+            }
+
+            int categoryIndex = firstRoll - 1;
+            int buildingIndex = secondRoll - 1;
+            type = rollTable[categoryIndex, buildingIndex];
+            return true;
+        }
+
+        private static bool IsValidRoll(int value)
+        {
+            return value >= 1 && value <= DiceFaces;
         }
     }
 }

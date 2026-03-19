@@ -191,11 +191,7 @@ namespace GlobalDomination.Managers
             Canvas canvas = FindFirstObjectByType<Canvas>();
             if (canvas == null)
             {
-                GameObject canvasObject = new GameObject("RuntimeGameUICanvas");
-                canvas = canvasObject.AddComponent<Canvas>();
-                canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-                canvasObject.AddComponent<CanvasScaler>();
-                canvasObject.AddComponent<GraphicRaycaster>();
+                canvas = RuntimeUiCanvasHelper.CreateScreenSpaceOverlayCanvas("RuntimeGameUICanvas");
             }
 
             if (currentPlayerText == null)
