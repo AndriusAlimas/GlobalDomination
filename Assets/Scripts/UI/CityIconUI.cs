@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 using TMPro;
 using GlobalDomination.GameData;
 using System.Collections;
@@ -42,6 +43,14 @@ namespace GlobalDomination.UI
         private static Sprite diceHandSprite;
         private static GameObject activeDiceOverlay;
         private static GameObject activeDiceWorldRoot;
+        private static Canvas forcedDiceCanvas;
+        private static Camera forcedDiceCamera;
+
+        private struct CanvasState
+        {
+            public Canvas canvas;
+            public bool wasEnabled;
+        }
         
         private City linkedCity;
 
@@ -1396,17 +1405,132 @@ namespace GlobalDomination.UI
             if (actionName == "Build new city")
             {
                 CloseActionMenu();
-                StartCoroutine(PlayBuildCityDiceRollAnimation());
+                StartCoroutine(PlayBuildCityDiceRollInSeparateScene());
                 return;
             }
 
             Debug.Log($"City '{linkedCity?.cityName}' selected action: {actionName}");
         }
 
+        private IEnumerator PlayBuildCityDiceRollInSeparateScene()
+        {
+            Camera sourceCamera = Camera.main;
+            bool sourceCameraWasEnabled = sourceCamera != null && sourceCamera.enabled;
+            List<CanvasState> hiddenCanvases = new List<CanvasState>();
+
+            Scene rollScene = SceneManager.CreateScene("BuildCityRollSceneRuntime");
+
+            GameObject rollCameraObj = new GameObject("BuildCityRollCamera");
+            Camera rollCamera = rollCameraObj.AddComponent<Camera>();
+            rollCamera.clearFlags = CameraClearFlags.SolidColor;
+            rollCamera.backgroundColor = new Color(0.23f, 0.37f, 0.62f, 1f);
+            rollCamera.fieldOfView = 60f;
+            rollCamera.nearClipPlane = 0.1f;
+            rollCamera.farClipPlane = 1000f;
+            rollCameraObj.tag = "MainCamera";
+
+            GameObject rollCanvasObj = new GameObject("BuildCityRollCanvas");
+            Canvas rollCanvas = rollCanvasObj.AddComponent<Canvas>();
+            rollCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            CanvasScaler scaler = rollCanvasObj.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            rollCanvasObj.AddComponent<GraphicRaycaster>();
+
+            SceneManager.MoveGameObjectToScene(rollCameraObj, rollScene);
+            SceneManager.MoveGameObjectToScene(rollCanvasObj, rollScene);
+
+            if (sourceCamera != null)
+            {
+                sourceCamera.enabled = false;
+            }
+
+            forcedDiceCamera = rollCamera;
+            forcedDiceCanvas = rollCanvas;
+            HideAllOtherCanvases(rollCanvas, hiddenCanvases);
+
+            yield return StartCoroutine(PlayBuildCityDiceRollAnimation());
+
+            forcedDiceCamera = null;
+            forcedDiceCanvas = null;
+            RestoreHiddenCanvases(hiddenCanvases);
+
+            if (sourceCamera != null)
+            {
+                sourceCamera.enabled = sourceCameraWasEnabled;
+            }
+
+            if (rollCameraObj != null)
+            {
+                Destroy(rollCameraObj);
+            }
+
+            if (rollCanvasObj != null)
+            {
+                Destroy(rollCanvasObj);
+            }
+
+            if (rollScene.IsValid() && rollScene.isLoaded)
+            {
+                AsyncOperation unload = SceneManager.UnloadSceneAsync(rollScene);
+                while (unload != null && !unload.isDone)
+                {
+                    yield return null;
+                }
+            }
+        }
+
+        private static void HideAllOtherCanvases(Canvas keepCanvas, List<CanvasState> hiddenCanvases)
+        {
+            if (hiddenCanvases == null)
+            {
+                return;
+            }
+
+            hiddenCanvases.Clear();
+            Canvas[] canvases = FindObjectsByType<Canvas>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            for (int i = 0; i < canvases.Length; i++)
+            {
+                Canvas canvas = canvases[i];
+                if (canvas == null || canvas == keepCanvas)
+                {
+                    continue;
+                }
+
+                CanvasState state = new CanvasState
+                {
+                    canvas = canvas,
+                    wasEnabled = canvas.enabled
+                };
+
+                hiddenCanvases.Add(state);
+                canvas.enabled = false;
+            }
+        }
+
+        private static void RestoreHiddenCanvases(List<CanvasState> hiddenCanvases)
+        {
+            if (hiddenCanvases == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < hiddenCanvases.Count; i++)
+            {
+                CanvasState state = hiddenCanvases[i];
+                if (state.canvas != null)
+                {
+                    state.canvas.enabled = state.wasEnabled;
+                }
+            }
+
+            hiddenCanvases.Clear();
+        }
+
         private IEnumerator PlayBuildCityDiceRollAnimation()
         {
-            Canvas canvas = GetComponentInParent<Canvas>();
-            Camera sceneCamera = Camera.main;
+            Canvas canvas = forcedDiceCanvas != null ? forcedDiceCanvas : GetComponentInParent<Canvas>();
+            Camera sceneCamera = forcedDiceCamera != null ? forcedDiceCamera : Camera.main;
             if (sceneCamera == null)
             {
                 yield break;
@@ -1444,7 +1568,8 @@ namespace GlobalDomination.UI
             overlayRect.offsetMax = Vector2.zero;
 
             Image overlayBg = overlayObj.AddComponent<Image>();
-            overlayBg.color = new Color(0f, 0f, 0f, 0.15f);
+            // Keep interactions blocked without darkening the dedicated rolling view.
+            overlayBg.color = new Color(0.23f, 0.37f, 0.62f, 0.06f);
             // Block other UI interactions while dice roll is active.
             overlayBg.raycastTarget = true;
 
@@ -1950,16 +2075,16 @@ namespace GlobalDomination.UI
             floor.transform.SetParent(rootInstance.transform, false);
             floor.transform.position = floorCenter;
             floor.transform.rotation = Quaternion.identity;
-            floor.transform.localScale = new Vector3(20f, 0.3f, 20f);
+            floor.transform.localScale = new Vector3(22f, 0.35f, 22f);
             PhysicsMaterial arenaPhysicsMaterial = CreateRuntimeArenaPhysicsMaterial();
             PhysicsMaterial arenaWallPhysicsMaterial = CreateRuntimeArenaWallPhysicsMaterial();
             Renderer floorRenderer = floor.GetComponent<Renderer>();
-            Material floorMaterial = CreateRuntimeDiceMaterial(new Color(0.07f, 0.24f, 0.10f, 1f));
+            Material floorMaterial = CreateRuntimeDiceMaterial(new Color(0.56f, 0.42f, 0.27f, 1f));
             if (floorRenderer != null && floorMaterial != null)
             {
                 floorRenderer.sharedMaterial = floorMaterial;
-                // Keep collider active for physics, but hide floor mesh so only your world ground is visible.
-                floorRenderer.enabled = false;
+                // Keep the table visible in dedicated roll view.
+                floorRenderer.enabled = true;
             }
 
             Collider floorCollider = floor.GetComponent<Collider>();
