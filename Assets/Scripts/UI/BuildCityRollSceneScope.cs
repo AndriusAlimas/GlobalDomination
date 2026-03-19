@@ -11,6 +11,8 @@ namespace GlobalDomination.UI
     /// </summary>
     public static class BuildCityRollSceneScope
     {
+        public static bool IsRollInProgress { get; private set; }
+
         private struct CanvasState
         {
             public Canvas canvas;
@@ -23,6 +25,8 @@ namespace GlobalDomination.UI
             {
                 yield break;
             }
+
+            IsRollInProgress = true;
 
             Camera sourceCamera = Camera.main;
             bool sourceCameraWasEnabled = sourceCamera != null && sourceCamera.enabled;
@@ -57,6 +61,8 @@ namespace GlobalDomination.UI
             {
                 yield return host.StartCoroutine(rollRoutine);
             }
+
+            IsRollInProgress = false;
 
             RestoreHiddenCanvases(hiddenCanvases);
 

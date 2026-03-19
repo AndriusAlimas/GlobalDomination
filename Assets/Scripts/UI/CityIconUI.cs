@@ -23,6 +23,7 @@ namespace GlobalDomination.UI
         [SerializeField] private Image cityIcon;
         [SerializeField] private TextMeshProUGUI populationText;
         [SerializeField] private TextMeshProUGUI cityNameText;
+        [SerializeField] private TextMeshProUGUI powerText;
         [SerializeField] private Image cityNameBackground;
         [SerializeField] private Image capitalStarIcon;
         [SerializeField] private Image backgroundCircle;
@@ -316,6 +317,7 @@ namespace GlobalDomination.UI
             powerTextRect.pivot = new Vector2(0.5f, 0.5f);
             powerTextRect.anchoredPosition = powerPos;
             powerTextRect.sizeDelta = new Vector2(citySize * 0.42f, citySize * 0.24f);
+            cityIconUI.powerText = powerText;
             
             // City name plate to keep label readable above busy icon art.
             GameObject nameBgObj = new GameObject("CityNamePlate");

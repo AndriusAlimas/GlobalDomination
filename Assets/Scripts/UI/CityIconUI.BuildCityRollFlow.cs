@@ -30,10 +30,108 @@ namespace GlobalDomination.UI
                 return;
             }
 
+            if (actionName == "Upgrading")
+            {
+                CloseActionMenu();
+                StartCoroutine(BuildCityRollSceneScope.Run(this, PlayUpgradingDiceRollAnimation));
+                return;
+            }
+
+            if (actionName == "Building Power")
+            {
+                CloseActionMenu();
+                StartCoroutine(BuildCityRollSceneScope.Run(this, PlayBuildingPowerDiceRollAnimation));
+                return;
+            }
+
+            if (actionName == "Researching")
+            {
+                CloseActionMenu();
+                StartCoroutine(BuildCityRollSceneScope.Run(this, PlayResearchingDiceRollAnimation));
+                return;
+            }
+
             Debug.Log($"City '{linkedCity?.cityName}' selected action: {actionName}");
         }
 
+        // ── Action-specific thin wrappers ──────────────────────────────────────
+
         private IEnumerator PlayBuildCityDiceRollAnimation(Canvas canvas, Camera sceneCamera)
+            => PlayDiceRollAnimation(canvas, sceneCamera,
+                "Build New City",
+                "Roll to discover your new city's starting building!",
+                roll =>
+                {
+                    var building = GameData.BuildingRollTable.GetBuildingFromRoll(
+                        UnityEngine.Random.Range(1, 7), roll);
+                    if (building != null)
+                    {
+                        linkedCity?.AddBuilding(building);
+                        Debug.Log($"City '{linkedCity?.cityName}' gained building: {building.displayName}");
+                    }
+                },
+                roll => roll >= 4 ? $"New building unlocked! (Roll: {roll})" : $"No building this time. (Roll: {roll})");
+
+        private IEnumerator PlayUpgradingDiceRollAnimation(Canvas canvas, Camera sceneCamera)
+            => PlayDiceRollAnimation(canvas, sceneCamera,
+                "Upgrading",
+                "Roll to earn upgrade points for your city!",
+                roll =>
+                {
+                    if (linkedCity != null) linkedCity.upgradePoints += roll;
+                    Debug.Log($"City '{linkedCity?.cityName}' gained {roll} upgrade points.");
+                },
+                roll => $"+{roll} Upgrade Point{(roll == 1 ? "" : "s")}!");
+
+        private IEnumerator PlayBuildingPowerDiceRollAnimation(Canvas canvas, Camera sceneCamera)
+        {
+            int firstRoll = 0;
+            yield return StartCoroutine(PlayDiceRollAnimation(canvas, sceneCamera,
+                "Building Power",
+                "Roll a 6 to gain power — then roll again for the amount!",
+                roll => firstRoll = roll,
+                roll => roll == 6
+                    ? "<color=#FFD700>Critical! Roll again!</color>"
+                    : "<color=#FF4444>Failed!</color>"));
+
+            if (firstRoll == 6)
+            {
+                yield return StartCoroutine(PlayDiceRollAnimation(canvas, sceneCamera,
+                    "Building Power — Bonus Roll",
+                    "Roll to determine how much power your city gains!",
+                    roll =>
+                    {
+                        if (linkedCity != null)
+                        {
+                            linkedCity.cityPower += roll;
+                            if (powerText != null) powerText.text = linkedCity.cityPower.ToString();
+                        }
+                        Debug.Log($"City '{linkedCity?.cityName}' gained {roll} city power.");
+                    },
+                    roll => $"+{roll} City Power!"));
+            }
+        }
+
+        private IEnumerator PlayResearchingDiceRollAnimation(Canvas canvas, Camera sceneCamera)
+            => PlayDiceRollAnimation(canvas, sceneCamera,
+                "Researching",
+                "Roll to generate gold from your researchers!",
+                roll =>
+                {
+                    if (linkedCity != null) linkedCity.money += roll;
+                    Debug.Log($"City '{linkedCity?.cityName}' gained {roll} gold from research.");
+                },
+                roll => $"+{roll} Gold from Research!");
+
+        // ── Shared dice-roll animation engine ─────────────────────────────────
+
+        private IEnumerator PlayDiceRollAnimation(
+            Canvas canvas,
+            Camera sceneCamera,
+            string actionTitle,
+            string hintLabel,
+            System.Action<int> onResult,
+            System.Func<int, string> resultFormatter)
         {
             if (sceneCamera == null)
             {
@@ -106,8 +204,14 @@ namespace GlobalDomination.UI
             resultText.text = string.Empty;
             resultText.raycastTarget = false;
 
+            // Action title banner at top of the dice view.
+            TextMeshProUGUI titleText = BuildCityDiceUiFactory.CreateDiceText(overlayObj.transform, "ActionTitle", 32f, new Vector2(0f, 290f));
+            titleText.text = actionTitle;
+            titleText.color = new Color(1f, 0.95f, 0.6f, 1f);
+            titleText.raycastTarget = false;
+
             TextMeshProUGUI hintText = BuildCityDiceUiFactory.CreateDiceText(overlayObj.transform, "Hint", 15f, new Vector2(0f, -340f));
-            hintText.text = "Hold left mouse to shake up power, release to throw";
+            hintText.text = hintLabel;
             hintText.color = new Color(0.8f, 0.9f, 1f, 0.9f);
             hintText.raycastTarget = false;
 
@@ -213,7 +317,7 @@ namespace GlobalDomination.UI
                         handRect.anchoredPosition = handHoldPos;
                         handRect.localRotation = Quaternion.identity;
                     }
-                    hintText.text = "Hold left mouse to shake up power, release to throw";
+                    hintText.text = hintLabel;
                 }
 
                 if (!releaseDetected)
@@ -409,8 +513,9 @@ namespace GlobalDomination.UI
 
             int finalRoll = DiceRoller.ResolveAnimatedD6Result(animatedDiceContext.diceStats != null ? animatedDiceContext.diceStats.side : -1);
 
-            resultText.text = $"Result: {finalRoll}";
-            Debug.Log($"City '{linkedCity?.cityName}' Build new city roll: {finalRoll}");
+            onResult?.Invoke(finalRoll);
+            resultText.text = resultFormatter != null ? resultFormatter(finalRoll) : $"Result: {finalRoll}";
+            Debug.Log($"City '{linkedCity?.cityName}' [{actionTitle}] roll: {finalRoll}");
 
             yield return new WaitForSeconds(2.5f);
 

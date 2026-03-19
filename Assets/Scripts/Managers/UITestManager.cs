@@ -382,6 +382,12 @@ Test the dice rolling system and game initialization";
 
         public void NextTurn()
         {
+            if (BuildCityRollSceneScope.IsRollInProgress)
+            {
+                Debug.LogWarning("Cannot advance turn while a dice roll is in progress.");
+                return;
+            }
+
             if (gameManager == null)
             {
                 Debug.LogWarning("Game not initialized!");
@@ -616,6 +622,11 @@ Test the dice rolling system and game initialization";
         {
             BuildCurrentTurnHeaderPresenterIfNeeded(false);
             UpdateCardLayouts();
+
+            if (BuildCityRollSceneScope.IsRollInProgress)
+            {
+                return;
+            }
 
             if (Input.GetKeyDown(toggleHelpKey))
             {
