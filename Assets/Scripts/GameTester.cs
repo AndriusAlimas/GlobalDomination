@@ -114,24 +114,5 @@ namespace GlobalDomination
 
             Debug.Log("=== Building Roll Test Complete ===\n");
         }
-
-        /// <summary>
-        /// Tests creating a custom player setup.
-        /// </summary>
-        public void TestCustomGameSetup()
-        {
-            Debug.Log("\n=== Testing Custom Game Setup ===");
-
-            GameManager gm = GameManager.Instance;
-            if (gm == null) return;
-
-            gm.StartNewGame(2);
-            gm.AddPlayer("Alice", CountryType.France);
-            gm.AddPlayer("Bob", CountryType.America);
-
-            gm.PrintGameState();
-
-            Debug.Log("=== Custom Game Setup Complete ===\n");
-        }
     }
 }

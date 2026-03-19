@@ -167,13 +167,5 @@ namespace GlobalDomination.GameData
                 CountryType.Russia 
             };
         }
-
-        /// <summary>
-        /// Gets the number of initially usable cities per country.
-        /// </summary>
-        public static int GetUsableCityCount()
-        {
-            return 6;
-        }
     }
 }

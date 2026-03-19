@@ -196,23 +196,5 @@ namespace GlobalDomination.Managers
         {
             return CountryDatabase.GetAllCountryTypes();
         }
-
-        /// <summary>
-        /// Test method to roll for a building.
-        /// </summary>
-        public void TestBuildingRoll()
-        {
-            Debug.Log("\n=== Testing Building Roll ===");
-            Building building = BuildingRollTable.RollForBuilding();
-            
-            if (building != null)
-            {
-                Debug.Log($"Rolled building: {building.displayName}");
-            }
-            else
-            {
-                Debug.Log("Rolled nothing (empty slot)");
-            }
-        }
     }
 }
