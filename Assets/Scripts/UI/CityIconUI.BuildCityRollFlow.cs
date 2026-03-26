@@ -140,6 +140,63 @@ namespace GlobalDomination.UI
                 },
                 roll => $"+{roll} Gold from Research!");
 
+        // ── Public method for startup building rolls ────────────────────────
+
+        /// <summary>
+        /// Public method to roll for a building during startup with 3D dice animation.
+        /// Performs two rolls (category + specific building).
+        /// </summary>
+        public static IEnumerator PlayStartupBuildingRoll(
+            GameData.City targetCity,
+            Canvas canvas,
+            Camera sceneCamera,
+            System.Action<GameData.Building, int, int> onCompleted = null)
+        {
+            if (targetCity == null || canvas == null || sceneCamera == null)
+            {
+                yield break;
+            }
+
+            int firstRoll = 0;
+            int secondRoll = 0;
+
+            // Temporary CityIconUI instance just for the dice rolling
+            GameObject tempObj = new GameObject("_TempDiceRoller");
+            CityIconUI tempRoller = tempObj.AddComponent<CityIconUI>();
+            tempRoller.linkedCity = targetCity;
+
+            // First roll: Building category
+            yield return tempRoller.PlayDiceRollAnimation(canvas, sceneCamera,
+                "Rolling for Starting Building",
+                "First roll: Building category (1-6)!",
+                roll => firstRoll = roll,
+                roll => $"Category: {roll}");
+
+            // Second roll: Specific building
+            yield return tempRoller.PlayDiceRollAnimation(canvas, sceneCamera,
+                "Rolling for Starting Building",
+                "Second roll: Specific building (1-6)!",
+                roll => secondRoll = roll,
+                roll => $"Building: {roll}");
+
+            // Get the building from both rolls
+            var building = GameData.BuildingRollTable.GetBuildingFromRoll(firstRoll, secondRoll);
+            if (building == null)
+            {
+                building = GameData.BuildingRollTable.RollForFirstBuilding();
+            }
+
+            if (building != null)
+            {
+                targetCity.AddBuilding(building);
+                Debug.Log($"{targetCity.cityName} gained starting building: {building.displayName} (Rolls: {firstRoll}, {secondRoll})");
+            }
+
+            onCompleted?.Invoke(building, firstRoll, secondRoll);
+
+            Destroy(tempObj);
+        }
+
         // ── Shared dice-roll animation engine ─────────────────────────────────
 
         private IEnumerator PlayDiceRollAnimation(

@@ -530,6 +530,7 @@ Test the dice rolling system and game initialization";
                 new Vector2(220f, 54f),
                 "Next Roll",
                 out TextMeshProUGUI nextButtonText);
+            nextButton.gameObject.SetActive(false);
 
             TextMeshProUGUI countdownText = CreateTextElement(
                 "CountdownText",
@@ -557,6 +558,8 @@ Test the dice rolling system and game initialization";
             Image countdownBgImage = countdownBgObj.AddComponent<Image>();
             countdownBgImage.color = new Color(0f, 0f, 0f, 0.35f);
             countdownBgImage.raycastTarget = false;
+            countdownBgObj.SetActive(false);
+            countdownText.gameObject.SetActive(false);
 
             countdownBgObj.transform.SetSiblingIndex(Mathf.Max(0, countdownText.transform.GetSiblingIndex() - 1));
 
@@ -601,7 +604,7 @@ Test the dice rolling system and game initialization";
                     capital.healthPoints,
                     new Color(1f, 0.93f, 0.57f, 1f)));
                 targetIcon?.RevealHealthBadgeNumber();
-                yield return StartCoroutine(WaitForNextOrTimeout(nextButton, nextButtonText, countdownText, "Next Roll", startupAutoNextSeconds));
+                yield return StartCoroutine(WaitForNextOrTimeout(nextButton, nextButtonText, countdownText, countdownBgObj, "Next Roll", startupAutoNextSeconds));
 
                 yield return StartCoroutine(AnimateStatBreakdown(statNameText, dieImages, formulaText, "MONEY", moneyRolls, capital.money, new Color(0.2f, 0.95f, 0.35f, 1f)));
                 yield return StartCoroutine(AnimateRollBadgeTransferToCity(
@@ -614,7 +617,7 @@ Test the dice rolling system and game initialization";
                     capital.money,
                     new Color(0.2f, 0.95f, 0.35f, 1f)));
                 targetIcon?.RevealMoneyBadgeNumber();
-                yield return StartCoroutine(WaitForNextOrTimeout(nextButton, nextButtonText, countdownText, "Next Roll", startupAutoNextSeconds));
+                yield return StartCoroutine(WaitForNextOrTimeout(nextButton, nextButtonText, countdownText, countdownBgObj, "Next Roll", startupAutoNextSeconds));
 
                 yield return StartCoroutine(AnimateStatBreakdown(statNameText, dieImages, formulaText, "POWER", powerRolls, capital.cityPower, new Color(1f, 0.2f, 0.2f, 1f)));
                 yield return StartCoroutine(AnimateRollBadgeTransferToCity(
@@ -627,9 +630,35 @@ Test the dice rolling system and game initialization";
                     capital.cityPower,
                     new Color(1f, 0.2f, 0.2f, 1f)));
                 targetIcon?.RevealPowerBadgeNumber();
+                yield return StartCoroutine(WaitForNextOrTimeout(nextButton, nextButtonText, countdownText, countdownBgObj, "Next Roll", startupAutoNextSeconds));
+
+                // ── Roll for Building with 3D Dice ────────────────────────
+                Building rolledBuilding = null;
+                int buildingRollOne = 0;
+                int buildingRollTwo = 0;
+                yield return StartCoroutine(BuildCityRollSceneScope.Run(this,
+                    (rollCanvas, rollCamera) => CityIconUI.PlayStartupBuildingRoll(
+                        capital,
+                        rollCanvas,
+                        rollCamera,
+                        (building, roll1, roll2) =>
+                        {
+                            rolledBuilding = building;
+                            buildingRollOne = roll1;
+                            buildingRollTwo = roll2;
+                        })));
+
+                string rolledBuildingName = rolledBuilding != null ? rolledBuilding.displayName : "No Building";
+                rollHeaderText.text = "Starting Building Rolled";
+                rollHeaderText.color = new Color(1f, 0.95f, 0.55f, 1f);
+                statNameText.text = rolledBuildingName;
+                statNameText.color = new Color(1f, 0.95f, 0.55f, 1f);
+                formulaText.text = $"Rolls: {buildingRollOne}, {buildingRollTwo}";
+                formulaText.color = new Color(1f, 0.95f, 0.55f, 1f);
+
                 bool isLastPlayer = playerIndex == gameManager.players.Count - 1;
                 string endStepLabel = isLastPlayer ? "Start Game" : "Next Player";
-                yield return StartCoroutine(WaitForNextOrTimeout(nextButton, nextButtonText, countdownText, endStepLabel, startupAutoNextSeconds));
+                yield return StartCoroutine(WaitForNextOrTimeout(nextButton, nextButtonText, countdownText, countdownBgObj, endStepLabel, startupAutoNextSeconds));
             }
 
             Destroy(overlayObj);
@@ -868,13 +897,17 @@ Test the dice rolling system and game initialization";
             return RectTransformUtility.ScreenPointToLocalPointInRectangle(overlayRect, screenPos, null, out localPoint);
         }
 
-        private IEnumerator WaitForNextOrTimeout(Button nextButton, TextMeshProUGUI nextButtonText, TextMeshProUGUI countdownText, string buttonLabel, float autoSeconds)
+        private IEnumerator WaitForNextOrTimeout(Button nextButton, TextMeshProUGUI nextButtonText, TextMeshProUGUI countdownText, GameObject countdownBgObj, string buttonLabel, float autoSeconds)
         {
             if (nextButton == null)
             {
                 yield return new WaitForSeconds(Mathf.Max(0f, autoSeconds));
                 yield break;
             }
+
+            nextButton.gameObject.SetActive(true);
+            if (countdownBgObj != null) countdownBgObj.SetActive(true);
+            if (countdownText != null) countdownText.gameObject.SetActive(true);
 
             bool pressed = false;
             nextButton.onClick.RemoveAllListeners();
@@ -903,7 +936,11 @@ Test the dice rolling system and game initialization";
             if (countdownText != null)
             {
                 countdownText.text = string.Empty;
+                countdownText.gameObject.SetActive(false);
             }
+
+            if (countdownBgObj != null) countdownBgObj.SetActive(false);
+            nextButton.gameObject.SetActive(false);
         }
 
         private static Image CreateDiceSlotImage(string objectName, Transform parent, Vector2 anchoredPosition, Vector2 sizeDelta)
