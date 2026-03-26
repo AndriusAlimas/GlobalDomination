@@ -23,7 +23,11 @@ namespace GlobalDomination.UI
         [SerializeField] private Image cityIcon;
         [SerializeField] private TextMeshProUGUI populationText;
         [SerializeField] private TextMeshProUGUI cityNameText;
+        [SerializeField] private TextMeshProUGUI moneyText;
         [SerializeField] private TextMeshProUGUI powerText;
+        [SerializeField] private Image populationPlateImage;
+        [SerializeField] private Image moneyPlateImage;
+        [SerializeField] private Image powerPlateImage;
         [SerializeField] private Image cityNameBackground;
         [SerializeField] private Image capitalStarIcon;
         [SerializeField] private Image backgroundCircle;
@@ -239,6 +243,7 @@ namespace GlobalDomination.UI
             popTextRect.sizeDelta = new Vector2(citySize * 0.54f, citySize * 0.32f);
             
             cityIconUI.populationText = popText;
+            cityIconUI.populationPlateImage = plateImage;
 
             // Circular badge arrangement (population at top, money at bottom-right, power at bottom-left)
             float badgeRadius = citySize * 0.38f;
@@ -282,6 +287,8 @@ namespace GlobalDomination.UI
             moneyTextRect.pivot = new Vector2(0.5f, 0.5f);
             moneyTextRect.anchoredPosition = moneyPos;
             moneyTextRect.sizeDelta = new Vector2(citySize * 0.42f, citySize * 0.24f);
+            cityIconUI.moneyText = moneyText;
+            cityIconUI.moneyPlateImage = moneyPlateImage;
 
             // Power badge at bottom-left (210 degrees) in red theme
             float powerAngle = 210f * Mathf.Deg2Rad;
@@ -318,6 +325,7 @@ namespace GlobalDomination.UI
             powerTextRect.anchoredPosition = powerPos;
             powerTextRect.sizeDelta = new Vector2(citySize * 0.42f, citySize * 0.24f);
             cityIconUI.powerText = powerText;
+            cityIconUI.powerPlateImage = powerPlateImage;
             
             // City name plate to keep label readable above busy icon art.
             GameObject nameBgObj = new GameObject("CityNamePlate");
@@ -1879,6 +1887,103 @@ namespace GlobalDomination.UI
                     ? new Color(0.9f, 0.22f, 0.22f, 0.95f)
                     : new Color(0.2f, 0.85f, 0.28f, 0.95f);
             }
+        }
+
+        public City LinkedCity => linkedCity;
+
+        public void HideStatBadgeNumbers()
+        {
+            if (populationText != null) populationText.text = "";
+            if (moneyText != null) moneyText.text = "";
+            if (powerText != null) powerText.text = "";
+        }
+
+        public void HideAllStatBadges()
+        {
+            if (populationPlateImage != null) populationPlateImage.gameObject.SetActive(false);
+            if (populationText != null) populationText.gameObject.SetActive(false);
+
+            if (moneyPlateImage != null) moneyPlateImage.gameObject.SetActive(false);
+            if (moneyText != null) moneyText.gameObject.SetActive(false);
+
+            if (powerPlateImage != null) powerPlateImage.gameObject.SetActive(false);
+            if (powerText != null) powerText.gameObject.SetActive(false);
+        }
+
+        public void RevealHealthBadgeNumber()
+        {
+            if (populationPlateImage != null) populationPlateImage.gameObject.SetActive(true);
+            if (populationText != null) populationText.gameObject.SetActive(true);
+
+            if (populationText != null && linkedCity != null)
+            {
+                populationText.text = linkedCity.healthPoints.ToString();
+            }
+        }
+
+        public void RevealMoneyBadgeNumber()
+        {
+            if (moneyPlateImage != null) moneyPlateImage.gameObject.SetActive(true);
+            if (moneyText != null) moneyText.gameObject.SetActive(true);
+
+            if (moneyText != null && linkedCity != null)
+            {
+                moneyText.text = linkedCity.money.ToString();
+            }
+        }
+
+        public void RevealPowerBadgeNumber()
+        {
+            if (powerPlateImage != null) powerPlateImage.gameObject.SetActive(true);
+            if (powerText != null) powerText.gameObject.SetActive(true);
+
+            if (powerText != null && linkedCity != null)
+            {
+                powerText.text = linkedCity.cityPower.ToString();
+            }
+        }
+
+        public void RevealAllBadgeNumbers()
+        {
+            RevealHealthBadgeNumber();
+            RevealMoneyBadgeNumber();
+            RevealPowerBadgeNumber();
+        }
+
+        public bool TryGetHealthBadgeWorldPosition(out Vector3 worldPosition)
+        {
+            if (populationText != null)
+            {
+                worldPosition = populationText.rectTransform.position;
+                return true;
+            }
+
+            worldPosition = Vector3.zero;
+            return false;
+        }
+
+        public bool TryGetMoneyBadgeWorldPosition(out Vector3 worldPosition)
+        {
+            if (moneyText != null)
+            {
+                worldPosition = moneyText.rectTransform.position;
+                return true;
+            }
+
+            worldPosition = Vector3.zero;
+            return false;
+        }
+
+        public bool TryGetPowerBadgeWorldPosition(out Vector3 worldPosition)
+        {
+            if (powerText != null)
+            {
+                worldPosition = powerText.rectTransform.position;
+                return true;
+            }
+
+            worldPosition = Vector3.zero;
+            return false;
         }
         
     }

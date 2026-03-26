@@ -98,18 +98,35 @@ namespace GlobalDomination.UI
             {
                 yield return StartCoroutine(PlayDiceRollAnimation(canvas, sceneCamera,
                     "Building Power — Bonus Roll",
-                    "Roll to determine how much power your city gains!",
+                    "1-3 = +1 Power, 4-5 = +2 Power, 6 = +3 Power",
                     roll =>
                     {
+                        int gainedPower = ConvertPowerBonusRollToPower(roll);
+
                         if (linkedCity != null)
                         {
-                            linkedCity.cityPower += roll;
+                            linkedCity.cityPower += gainedPower;
                             if (powerText != null) powerText.text = linkedCity.cityPower.ToString();
                         }
-                        Debug.Log($"City '{linkedCity?.cityName}' gained {roll} city power.");
+                        Debug.Log($"City '{linkedCity?.cityName}' gained {gainedPower} city power (bonus roll: {roll}).");
                     },
-                    roll => $"+{roll} City Power!"));
+                    roll => $"+{ConvertPowerBonusRollToPower(roll)} City Power!"));
             }
+        }
+
+        private static int ConvertPowerBonusRollToPower(int roll)
+        {
+            if (roll <= 3)
+            {
+                return 1;
+            }
+
+            if (roll <= 5)
+            {
+                return 2;
+            }
+
+            return 3;
         }
 
         private IEnumerator PlayResearchingDiceRollAnimation(Canvas canvas, Camera sceneCamera)

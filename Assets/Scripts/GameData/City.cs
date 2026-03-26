@@ -13,6 +13,9 @@ namespace GlobalDomination.GameData
         public int healthPoints;      // Population (rolled 3 times)
         public int money;             // Money (rolled 2 times)
         public int cityPower;         // Defense (rolled 1 time)
+        public List<int> startingHealthRolls; // Individual startup D6 rolls for health
+        public List<int> startingMoneyRolls;  // Individual startup D6 rolls for money
+        public List<int> startingPowerRolls;  // Individual startup D6 rolls for power
         public bool hasTakenTurn;     // Simple turn-done marker for UI dimming
         
         // Buildings and upgrades
@@ -33,6 +36,9 @@ namespace GlobalDomination.GameData
             
             buildings = new List<Building>();
             unitsInFort = new List<string>();
+            startingHealthRolls = new List<int>();
+            startingMoneyRolls = new List<int>();
+            startingPowerRolls = new List<int>();
             upgradePoints = 0;
         }
 
@@ -42,15 +48,15 @@ namespace GlobalDomination.GameData
         public void InitializeWithDiceRolls()
         {
             // Roll 3 times for Health Points (Population)
-            healthPoints = DiceRoller.Roll(3);
+            healthPoints = RollStatWithBreakdown(3, startingHealthRolls);
             Debug.Log($"{cityName}: Health Points (Population) = {healthPoints}");
             
             // Roll 2 times for Money
-            money = DiceRoller.Roll(2);
+            money = RollStatWithBreakdown(2, startingMoneyRolls);
             Debug.Log($"{cityName}: Money = {money}");
             
             // Roll 1 time for City Power (Defense)
-            cityPower = DiceRoller.RollD6();
+            cityPower = RollStatWithBreakdown(1, startingPowerRolls);
             Debug.Log($"{cityName}: City Power (Defense) = {cityPower}");
             
             // Roll for first building
@@ -60,6 +66,26 @@ namespace GlobalDomination.GameData
                 buildings.Add(firstBuilding);
                 Debug.Log($"{cityName}: First building = {firstBuilding.displayName}");
             }
+        }
+
+        private static int RollStatWithBreakdown(int diceCount, List<int> breakdown)
+        {
+            if (breakdown == null)
+            {
+                return DiceRoller.Roll(diceCount);
+            }
+
+            breakdown.Clear();
+            int total = 0;
+
+            for (int i = 0; i < diceCount; i++)
+            {
+                int roll = DiceRoller.RollD6();
+                breakdown.Add(roll);
+                total += roll;
+            }
+
+            return total;
         }
 
         /// <summary>
