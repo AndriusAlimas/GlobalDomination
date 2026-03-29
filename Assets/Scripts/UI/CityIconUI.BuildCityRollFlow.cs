@@ -1,7 +1,10 @@
 using System.Collections;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using GlobalDomination.GameData;
+using GlobalDomination.Managers;
 
 namespace GlobalDomination.UI
 {
@@ -57,20 +60,127 @@ namespace GlobalDomination.UI
         // ── Action-specific thin wrappers ──────────────────────────────────────
 
         private IEnumerator PlayBuildCityDiceRollAnimation(Canvas canvas, Camera sceneCamera)
-            => PlayDiceRollAnimation(canvas, sceneCamera,
+        {
+            int cityCreationRoll = 0;
+            yield return StartCoroutine(PlayDiceRollAnimation(canvas, sceneCamera,
                 "Build New City",
-                "Roll to discover your new city's starting building!",
-                roll =>
+                "Roll a 6 to found a new city!",
+                roll => cityCreationRoll = roll,
+                roll => roll == 6
+                    ? "Success! New city founded!"
+                    : $"Failed. Need 6 (Roll: {roll})"));
+
+            if (cityCreationRoll != 6)
+            {
+                yield break;
+            }
+
+            CreateNewCityFromSuccessfulRoll();
+        }
+
+        private void CreateNewCityFromSuccessfulRoll()
+        {
+            if (linkedCity == null)
+            {
+                return;
+            }
+
+            GameManager gameManager = GameManager.Instance;
+            if (gameManager == null)
+            {
+                Debug.LogWarning("[CityIconUI] Cannot create new city: GameManager not found.");
+                return;
+            }
+
+            Player ownerPlayer = ResolveOwningPlayer(gameManager);
+            if (ownerPlayer == null)
+            {
+                Debug.LogWarning("[CityIconUI] Cannot create new city: owner player not found.");
+                return;
+            }
+
+            string cityName = GetNextAvailableCityName(ownerPlayer);
+            City newCity = new City(cityName, capital: false, ownerId: ownerPlayer.playerId);
+            // Roll core startup stats now; starting building is granted via startup-style roll animation.
+            newCity.InitializeWithDiceRolls(includeStartingBuilding: false);
+            // A newly founded city should not be able to act again on the same turn.
+            newCity.hasTakenTurn = true;
+
+            ownerPlayer.AddCity(newCity);
+
+            Debug.Log($"[CityIconUI] {ownerPlayer.playerName} founded new city '{newCity.cityName}' after rolling 6.");
+
+            UITestManager uiTestManager = Object.FindFirstObjectByType<UITestManager>();
+            if (uiTestManager != null)
+            {
+                uiTestManager.PlayFoundedCityStartupReveal(ownerPlayer, newCity);
+            }
+        }
+
+        private Player ResolveOwningPlayer(GameManager gameManager)
+        {
+            if (gameManager.players == null)
+            {
+                return null;
+            }
+
+            if (linkedCity != null && linkedCity.ownerId > 0)
+            {
+                for (int i = 0; i < gameManager.players.Count; i++)
                 {
-                    var building = GameData.BuildingRollTable.GetBuildingFromRoll(
-                        UnityEngine.Random.Range(1, 7), roll);
-                    if (building != null)
+                    Player player = gameManager.players[i];
+                    if (player != null && player.playerId == linkedCity.ownerId)
                     {
-                        linkedCity?.AddBuilding(building);
-                        Debug.Log($"City '{linkedCity?.cityName}' gained building: {building.displayName}");
+                        return player;
                     }
-                },
-                roll => roll >= 4 ? $"New building unlocked! (Roll: {roll})" : $"No building this time. (Roll: {roll})");
+                }
+            }
+
+            return gameManager.GetCurrentPlayer();
+        }
+
+        private string GetNextAvailableCityName(Player ownerPlayer)
+        {
+            HashSet<string> usedNames = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+            if (ownerPlayer.ownedCities != null)
+            {
+                for (int i = 0; i < ownerPlayer.ownedCities.Count; i++)
+                {
+                    City city = ownerPlayer.ownedCities[i];
+                    if (city != null && !string.IsNullOrWhiteSpace(city.cityName))
+                    {
+                        usedNames.Add(city.cityName.Trim());
+                    }
+                }
+            }
+
+            CountryData countryData = CountryDatabase.GetCountryData(ownerPlayer.selectedCountry);
+            if (countryData != null && countryData.cityNames != null)
+            {
+                for (int i = 0; i < countryData.cityNames.Count; i++)
+                {
+                    string candidate = countryData.cityNames[i];
+                    if (!string.IsNullOrWhiteSpace(candidate) && !usedNames.Contains(candidate.Trim()))
+                    {
+                        return candidate.Trim();
+                    }
+                }
+            }
+
+            string baseName = !string.IsNullOrWhiteSpace(linkedCity.cityName)
+                ? linkedCity.cityName.Trim()
+                : "City";
+
+            int suffix = 2;
+            string generatedName = $"{baseName} Colony {suffix}";
+            while (usedNames.Contains(generatedName))
+            {
+                suffix++;
+                generatedName = $"{baseName} Colony {suffix}";
+            }
+
+            return generatedName;
+        }
 
         private IEnumerator PlayUpgradingDiceRollAnimation(Canvas canvas, Camera sceneCamera)
         {

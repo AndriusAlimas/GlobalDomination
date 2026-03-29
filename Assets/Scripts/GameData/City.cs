@@ -45,7 +45,7 @@ namespace GlobalDomination.GameData
         /// <summary>
         /// Initializes the city with dice rolls for starting stats.
         /// </summary>
-        public void InitializeWithDiceRolls()
+        public void InitializeWithDiceRolls(bool includeStartingBuilding = true)
         {
             // Roll 3 times for Health Points (Population)
             healthPoints = RollStatWithBreakdown(3, startingHealthRolls);
@@ -59,12 +59,15 @@ namespace GlobalDomination.GameData
             cityPower = RollStatWithBreakdown(1, startingPowerRolls);
             Debug.Log($"{cityName}: City Power (Defense) = {cityPower}");
             
-            // Roll for first building
-            Building firstBuilding = BuildingRollTable.RollForFirstBuilding();
-            if (firstBuilding != null)
+            if (includeStartingBuilding)
             {
-                buildings.Add(firstBuilding);
-                Debug.Log($"{cityName}: First building = {firstBuilding.displayName}");
+                // Roll for first building
+                Building firstBuilding = BuildingRollTable.RollForFirstBuilding();
+                if (firstBuilding != null)
+                {
+                    buildings.Add(firstBuilding);
+                    Debug.Log($"{cityName}: First building = {firstBuilding.displayName}");
+                }
             }
         }
 
