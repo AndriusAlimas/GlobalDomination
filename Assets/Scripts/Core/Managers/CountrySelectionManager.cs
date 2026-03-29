@@ -96,9 +96,6 @@ namespace GlobalDomination.Managers
         /// </summary>
         private void OnAllPlayersSelected()
         {
-            Debug.Log("All players have selected their countries!");
-            Debug.Log("Game is starting...");
-            
             // You can transition to the main game scene here
             // SceneManager.LoadScene("MainGameScene");
         }

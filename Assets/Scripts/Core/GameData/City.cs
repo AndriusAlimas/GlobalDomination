@@ -1,6 +1,4 @@
 using System.Collections.Generic;
-using UnityEngine;
-
 using GlobalDomination;
 
 namespace GlobalDomination.GameData
@@ -51,15 +49,12 @@ namespace GlobalDomination.GameData
         {
             // Roll 3 times for Health Points (Population)
             healthPoints = RollStatWithBreakdown(3, startingHealthRolls);
-            Debug.Log($"{cityName}: Health Points (Population) = {healthPoints}");
-            
+
             // Roll 2 times for Money
             money = RollStatWithBreakdown(2, startingMoneyRolls);
-            Debug.Log($"{cityName}: Money = {money}");
-            
+
             // Roll 1 time for City Power (Defense)
             cityPower = RollStatWithBreakdown(1, startingPowerRolls);
-            Debug.Log($"{cityName}: City Power (Defense) = {cityPower}");
             
             if (includeStartingBuilding)
             {
@@ -68,7 +63,6 @@ namespace GlobalDomination.GameData
                 if (firstBuilding != null)
                 {
                     buildings.Add(firstBuilding);
-                    Debug.Log($"{cityName}: First building = {firstBuilding.displayName}");
                 }
             }
         }

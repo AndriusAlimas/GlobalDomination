@@ -64,11 +64,9 @@ namespace GlobalDomination.GameData
             
             if (type == BuildingType.None)
             {
-                Debug.Log($"Rolled [{firstRoll}, {secondRoll}] - No building");
                 return null;
             }
 
-            Debug.Log($"Rolled [{firstRoll}, {secondRoll}] - {type}");
             return new Building(type);
         }
 

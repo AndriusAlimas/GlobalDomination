@@ -45,8 +45,6 @@ namespace GlobalDomination.Managers
         /// </summary>
         public void InitializeTestGame()
         {
-            Debug.Log("=== Initializing Test Game ===");
-
             // Reset state so repeated test initialization does not duplicate players.
             players.Clear();
             gameOver = false;
@@ -65,9 +63,6 @@ namespace GlobalDomination.Managers
 
             gameStarted = true;
             currentPlayerIndex = 0;
-
-            Debug.Log("\n=== Game Initialized ===");
-            PrintGameState();
         }
 
         /// <summary>
@@ -81,8 +76,6 @@ namespace GlobalDomination.Managers
             currentPlayerIndex = 0;
             gameStarted = false;
             gameOver = false;
-            
-            Debug.Log($"New game created for {numPlayers} players. Add players and initialize them.");
         }
 
         /// <summary>
@@ -101,13 +94,10 @@ namespace GlobalDomination.Managers
             newPlayer.InitializeWithCountry(country);
             players.Add(newPlayer);
 
-            Debug.Log($"Player {playerName} added with {country}");
-
             // Start the game when all players have joined
             if (players.Count == numberOfPlayers)
             {
                 gameStarted = true;
-                Debug.Log("All players joined! Game started!");
             }
 
             return newPlayer;
@@ -148,8 +138,6 @@ namespace GlobalDomination.Managers
                     }
                 }
             }
-
-            Debug.Log($"\n=== Turn: {GetCurrentPlayer().playerName} ===");
         }
 
         /// <summary>
@@ -158,26 +146,18 @@ namespace GlobalDomination.Managers
         public bool CheckGameOver()
         {
             int playersWithCities = 0;
-            Player winner = null;
 
             foreach (var player in players)
             {
                 if (!player.HasLost())
                 {
                     playersWithCities++;
-                    winner = player;
                 }
             }
 
             if (playersWithCities <= 1)
             {
                 gameOver = true;
-                if (winner != null)
-                {
-                    Debug.Log($"\n{'='*50}");
-                    Debug.Log($"GAME OVER! {winner.playerName} wins!");
-                    Debug.Log($"{'='*50}\n");
-                }
                 return true;
             }
 
@@ -185,20 +165,10 @@ namespace GlobalDomination.Managers
         }
 
         /// <summary>
-        /// Prints the current state of the game.
+        /// Hook for debug/inspector callers. Text summaries live on <see cref="Player.GetPlayerSummary"/> and <see cref="City.GetCitySummary"/>; logging is intentionally silent.
         /// </summary>
         public void PrintGameState()
         {
-            Debug.Log("\n╔════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗");
-            Debug.Log("║                           🎮 GLOBAL DOMINATION - GAME STATE 🎮                                                                 ║");
-            string activePlayer = players.Count > 0 ? players[currentPlayerIndex].playerName : "None";
-            Debug.Log($"║                                Players: {players.Count,-2}  |  Active Player: {activePlayer,-30}                            ║");
-            Debug.Log("╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝");
-
-            foreach (var player in players)
-            {
-                Debug.Log(player.GetPlayerSummary());
-            }
         }
 
         /// <summary>

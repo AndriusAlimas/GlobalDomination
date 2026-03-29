@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using UnityEngine;
 
 namespace GlobalDomination.GameData
 {
@@ -34,9 +33,6 @@ namespace GlobalDomination.GameData
                 capital.InitializeWithDiceRolls();
                 
                 ownedCities.Add(capital);
-                
-                Debug.Log($"Player {playerName} selected {countryData.countryName}");
-                Debug.Log(capital.GetCitySummary());
             }
         }
 
