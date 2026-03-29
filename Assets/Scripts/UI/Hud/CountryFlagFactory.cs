@@ -1,7 +1,7 @@
 using UnityEngine;
 using GlobalDomination.GameData;
 
-namespace GlobalDomination.UI
+namespace GlobalDomination.UI.Hud
 {
     /// <summary>
     /// Creates simple fallback flag sprites when no flag asset is assigned.

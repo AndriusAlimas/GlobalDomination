@@ -77,9 +77,23 @@ Buildings are obtained through a two-dice roll system (6x6 grid):
 - Players take actions on their turn
 - Game continues until only one player has cities remaining
 
+## Project layout (`Assets/Scripts`)
+
+| Folder | Role |
+|--------|------|
+| **Core/GameData/** | Serializable game model: cities, players, buildings, tables |
+| **Core/Managers/** | Game flow coordinators (`GameManager`, `CountrySelectionManager`) |
+| **Core/Helpers/** | Shared utilities (e.g. dice math) |
+| **UI/Hud/** | Map HUD: city grid, turn header, flags, shared runtime canvas helper (`GlobalDomination.UI.Hud`) |
+| **UI/CityIcon/** | City icon, action menus, build-city dice roll, arena audio (`GlobalDomination.UI`) |
+| **Bootstrap/** | `GameTester` scene helper and **`UITestManager`** (orchestrates HUD + test UI; references Core + UI) |
+| **Editor/** | Asset pipeline / editor tools |
+
+Assembly definitions: **`Core/GlobalDomination.Core.asmdef`** (everything under `Core/`), **`Editor/GlobalDomination.Editor.asmdef`** (editor-only). Remaining runtime scripts (`UI/`, `Bootstrap/`) compile in the default **Assembly-CSharp**, which references **GlobalDomination.Core** automatically.
+
 ## Implementation Files
 
-### Core Data Classes
+### Core Data Classes (`Core/GameData/`)
 
 - **GameEnums.cs:** Defines CountryType and BuildingType enumerations
 - **Building.cs:** Building data structure with type, name, and level
@@ -88,19 +102,45 @@ Buildings are obtained through a two-dice roll system (6x6 grid):
 - **CountryDatabase.cs:** Static database of all countries and their cities
 - **BuildingRollTable.cs:** Handles building generation via dice rolls
 
-### Managers
+### Managers (`Core/Managers/`)
 
 - **GameManager.cs:** Main game controller managing players, turns, and game state
 - **CountrySelectionManager.cs:** Handles country selection UI and player registration
 
 ### Helpers
 
-- **DiceRoller.cs:** D6 rolls, sums, and physical throw profile helpers used by the dice UI
-- **RuntimeUiCanvasHelper.cs:** Creates runtime overlay canvases (HUD / roll flows)
+- **DiceRoller.cs** (`Core/Helpers/`): D6 rolls, sums, and physical throw profiles (`namespace GlobalDomination`)
+- **RuntimeUiCanvasHelper.cs** (`UI/Hud/`): Runtime overlay canvases (HUD / roll flows)
+
+### UI / HUD (`UI/Hud/`)
+
+- **CitiesDisplayManager.cs:** City icon grid for the current player
+- **CurrentTurnHeaderUI.cs:** Top-of-screen turn / player header
+- **CountryFlagFactory.cs:** Procedural fallback flag sprites
+- **RuntimeUiCanvasHelper.cs:** Shared runtime overlay canvas setup
+
+### UI / City icon & dice
+
+- **CityIconUI.cs** + **CityIconUI.BuildCityRollFlow.cs** (`UI/CityIcon/`): City widgets and roll flows
+- **BuildCityDiceUiFactory.cs**, **BuildCityRollSceneScope.cs** (`UI/CityIcon/`): Dice overlay UI and isolated roll scene
+- **DiceArenaAudio.cs** (`UI/CityIcon/`): Arena impact audio (`DiceImpactAudio`, surface tags, Resources / procedural clips)
 
 ### Testing
 
-- **GameTester.cs:** Optional harness; ensures a `UITestManager` exists and exposes `RunGameTest` / `TestBuildingRolls` for the inspector
+- **GameTester.cs** (`Bootstrap/`): Optional harness; ensures a `UITestManager` exists and exposes `RunGameTest` / `TestBuildingRolls` for the inspector
+- **UITestManager.cs** + **UITestManager.StartupReveal.partial.cs** (`Bootstrap/`): Test HUD and flow; startup stat / founded-city reveal coroutines live in the partial file
+
+## Optional next steps (structure and tooling)
+
+These are **not required** for the current game; they help when the codebase grows.
+
+### Further split of `UITestManager`
+
+`UITestManager` still orchestrates HUD wiring, startup reveal, end turn, flags, and dev-only UI. Next refinements could be a dedicated **startup reveal coordinator**, a **HUD builder**, or a **player-block factory**, leaving `UITestManager` as a thin orchestrator.
+
+### Optional `GlobalDomination.UI` assembly
+
+`UI/` and `Bootstrap/` still live in **Assembly-CSharp** so they can reference **`GlobalDomination.Core`** and each other without a **Core ↔ UI** circular dependency. If you want a **`GlobalDomination.UI`** asmdef, move presentation-only scripts under it and keep **`UITestManager`** (or any type that both **GameManager** and **CityIconUI** need from the “other side”) in a small third assembly or in **Assembly-CSharp**, with explicit **asmdef** references (`UI` → `Core`, etc.).
 
 ## How to Use
 

@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+using GlobalDomination;
+
 namespace GlobalDomination.GameData
 {
     /// <summary>

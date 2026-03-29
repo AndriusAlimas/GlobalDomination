@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace GlobalDomination.UI
+namespace GlobalDomination.UI.Hud
 {
     /// <summary>
     /// Shared helper for canvases created at runtime (HUD, roll overlays, etc.).

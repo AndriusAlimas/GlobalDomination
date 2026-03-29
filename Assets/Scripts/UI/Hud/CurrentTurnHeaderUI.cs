@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using GlobalDomination.GameData;
 
-namespace GlobalDomination.UI
+namespace GlobalDomination.UI.Hud
 {
     public struct CurrentTurnHeaderSettings
     {

@@ -232,7 +232,11 @@ GlobalDomination/
 │       │   └── UITestManager.cs ← New
 │       ├── Helpers/
 │       │   └── DiceRoller.cs
-│       └── GameTester.cs
+│       ├── Bootstrap/
+│       │   └── GameTester.cs
+│       └── UI/
+│           ├── CityIcon/   ← city menus, dice roll, DiceArenaAudio
+│           └── ...
 ├── README.md
 └── TESTING_GUIDE.md ← You are here
 ```

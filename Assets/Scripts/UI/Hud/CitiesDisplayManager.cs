@@ -1,8 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 using GlobalDomination.GameData;
+using GlobalDomination.UI;
 
-namespace GlobalDomination.UI
+namespace GlobalDomination.UI.Hud
 {
     /// <summary>
     /// Manages the display of all city icons in a grid layout with dynamic sizing.
