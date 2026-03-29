@@ -12,8 +12,18 @@ namespace GlobalDomination.GameData
         public Building(BuildingType type, string displayName = null)
         {
             this.type = type;
-            this.displayName = displayName ?? type.ToString();
+            this.displayName = displayName ?? DefaultDisplayName(type);
             this.level = 1;
+        }
+
+        private static string DefaultDisplayName(BuildingType type)
+        {
+            if (type == BuildingType.MainBase)
+            {
+                return "Main Base";
+            }
+
+            return type.ToString();
         }
 
         public override string ToString()

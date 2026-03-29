@@ -58,12 +58,9 @@ namespace GlobalDomination.GameData
             
             if (includeStartingBuilding)
             {
-                // Roll for first building
-                Building firstBuilding = BuildingRollTable.RollForFirstBuilding();
-                if (firstBuilding != null)
-                {
-                    buildings.Add(firstBuilding);
-                }
+                // First building is always Main Base; a second building comes from startup dice
+                // (capitals) or founded-city reveal — not a random roll here.
+                buildings.Add(new Building(BuildingType.MainBase));
             }
         }
 
@@ -96,6 +93,27 @@ namespace GlobalDomination.GameData
             {
                 buildings.Add(building);
             }
+        }
+
+        /// <summary>
+        /// Cities with Main Base can use "Build new city" from the city menu (not capitals only).
+        /// </summary>
+        public bool HasMainBase()
+        {
+            if (buildings == null)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < buildings.Count; i++)
+            {
+                if (buildings[i] != null && buildings[i].type == BuildingType.MainBase)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public override string ToString()

@@ -561,6 +561,7 @@ namespace GlobalDomination.Managers
             targetIcon?.RevealPowerBadgeNumber();
             yield return StartCoroutine(WaitForNextOrTimeout(nextButton, nextButtonText, countdownText, countdownBgObj, "Next Roll", startupAutoNextSeconds));
 
+            // First (and only starting) building for a founded city — same dice table as startup capitals.
             Building rolledBuilding = null;
             int buildingRollOne = 0;
             int buildingRollTwo = 0;
@@ -577,7 +578,7 @@ namespace GlobalDomination.Managers
                     })));
 
             string rolledBuildingName = rolledBuilding != null ? rolledBuilding.displayName : "No Building";
-            rollHeaderText.text = "Starting Building Rolled";
+            rollHeaderText.text = "Starting building rolled";
             rollHeaderText.color = new Color(1f, 0.95f, 0.55f, 1f);
             statNameText.text = rolledBuildingName;
             statNameText.color = new Color(1f, 0.95f, 0.55f, 1f);

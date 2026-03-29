@@ -1252,10 +1252,10 @@ namespace GlobalDomination.UI
 
             CreateMenuTitle(panelObj.transform, linkedCity.cityName + " Commands");
 
-            bool canBuildNewCity = linkedCity.isCapital;
+            bool canBuildNewCity = linkedCity.HasMainBase();
             string buildCityLabel = canBuildNewCity
                 ? "1. Build new city"
-                : "1. Build new city (Main city only)";
+                : "1. Build new city (need Main Base)";
             CreateMenuButton(panelObj.transform, new Vector2(0f, 104f), buildCityLabel, () => OnActionClicked("Build new city"), canBuildNewCity);
             CreateMenuButton(panelObj.transform, new Vector2(0f, 56f), "2. Upgrading", () => OnActionClicked("Upgrading"));
             CreateMenuButton(panelObj.transform, new Vector2(0f, 8f), "3. Building Power", () => OnActionClicked("Building Power"));

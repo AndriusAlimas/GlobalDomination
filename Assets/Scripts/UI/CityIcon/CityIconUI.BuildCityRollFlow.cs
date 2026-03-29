@@ -24,6 +24,20 @@ namespace GlobalDomination.UI
                 return;
             }
 
+            if (actionName == "Check Buildings")
+            {
+                CloseActionMenu();
+                ShowBuildingsListPanel();
+                return;
+            }
+
+            if (actionName == "Check Fort")
+            {
+                CloseActionMenu();
+                ShowFortStatusPanel();
+                return;
+            }
+
             SetTurnCompleted(true);
 
             if (actionName == "Build new city")
@@ -119,7 +133,7 @@ namespace GlobalDomination.UI
 
             string cityName = GetNextAvailableCityName(ownerPlayer);
             City newCity = new City(cityName, capital: false, ownerId: ownerPlayer.playerId);
-            // Roll core startup stats now; starting building is granted via startup-style roll animation.
+            // Stats only; first building is whatever the founded-city dice roll gives (not Main Base by default).
             newCity.InitializeWithDiceRolls(includeStartingBuilding: false);
             // A newly founded city should not be able to act again on the same turn.
             newCity.hasTakenTurn = true;
@@ -508,13 +522,8 @@ namespace GlobalDomination.UI
                 roll => string.Empty,
                 () => tempRoller.PlayBuildingRollTableReveal(canvas, firstRoll, secondRoll));
 
-            // Get the building from both rolls
+            // Respect empty table slots (None): do not substitute a random building.
             var building = GameData.BuildingRollTable.GetBuildingFromRoll(firstRoll, secondRoll);
-            if (building == null)
-            {
-                building = GameData.BuildingRollTable.RollForFirstBuilding();
-            }
-
             if (building != null)
             {
                 targetCity.AddBuilding(building);
