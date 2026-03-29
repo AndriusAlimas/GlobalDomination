@@ -541,19 +541,21 @@ namespace GlobalDomination.UI
             CityIconUI tempRoller = tempObj.AddComponent<CityIconUI>();
             tempRoller.linkedCity = targetCity;
 
-            // First roll: Building category
+            // First roll: Building category — table reveals while camera still faces dice.
             yield return tempRoller.PlayDiceRollAnimation(canvas, sceneCamera,
-                "Rolling for Starting Building",
-                "First roll: Building category (1-6)!",
+                "Roll 1 / 2",
+                string.Empty,
                 roll => firstRoll = roll,
-                roll => $"Category: {roll}");
+                roll => string.Empty,
+                () => tempRoller.PlayBuildingRollTableReveal(canvas, firstRoll, null));
 
-            // Second roll: Specific building
+            // Second roll: Specific building — table reveals while camera still faces dice.
             yield return tempRoller.PlayDiceRollAnimation(canvas, sceneCamera,
-                "Rolling for Starting Building",
-                "Second roll: Specific building (1-6)!",
+                "Roll 2 / 2",
+                string.Empty,
                 roll => secondRoll = roll,
-                roll => $"Building: {roll}");
+                roll => string.Empty,
+                () => tempRoller.PlayBuildingRollTableReveal(canvas, firstRoll, secondRoll));
 
             // Get the building from both rolls
             var building = GameData.BuildingRollTable.GetBuildingFromRoll(firstRoll, secondRoll);
@@ -573,6 +575,302 @@ namespace GlobalDomination.UI
             Destroy(tempObj);
         }
 
+        private IEnumerator PlayBuildingRollTableReveal(Canvas canvas, int firstRoll, int? secondRoll)
+        {
+            if (canvas == null)
+            {
+                yield break;
+            }
+
+            int clampedFirstRoll = Mathf.Clamp(firstRoll, 1, 6);
+            int clampedSecondRoll = secondRoll.HasValue ? Mathf.Clamp(secondRoll.Value, 1, 6) : -1;
+
+            GameObject overlayObj = new GameObject("BuildingRollTableOverlay");
+            overlayObj.transform.SetParent(canvas.transform, false);
+            overlayObj.transform.SetAsLastSibling();
+
+            RectTransform overlayRect = overlayObj.AddComponent<RectTransform>();
+            overlayRect.anchorMin = Vector2.zero;
+            overlayRect.anchorMax = Vector2.one;
+            overlayRect.offsetMin = Vector2.zero;
+            overlayRect.offsetMax = Vector2.zero;
+
+            Image overlayBg = overlayObj.AddComponent<Image>();
+            // Keep this as a quick lookup layer over the dice view, not a full blocking modal.
+            overlayBg.color = new Color(0.03f, 0.06f, 0.12f, 0.18f);
+            overlayBg.raycastTarget = true;
+
+            GameObject panelObj = new GameObject("BuildingRollTablePanel");
+            panelObj.transform.SetParent(overlayObj.transform, false);
+
+            RectTransform panelRect = panelObj.AddComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRect.pivot = new Vector2(0.5f, 0.5f);
+            panelRect.anchoredPosition = Vector2.zero;
+            panelRect.sizeDelta = new Vector2(1260f, 780f);
+            panelRect.localScale = Vector3.one;
+
+            Image panelBg = panelObj.AddComponent<Image>();
+            panelBg.color = new Color(0.08f, 0.14f, 0.24f, 0.55f);
+
+            // Resolve picked building early so we can embed it into the hint.
+            string pickedLabel = string.Empty;
+            if (secondRoll.HasValue &&
+                GameData.BuildingRollTable.TryGetBuildingTypeFromRoll(clampedFirstRoll, clampedSecondRoll, out GameData.BuildingType earlyType))
+            {
+                pickedLabel = FormatBuildingTypeLabel(earlyType);
+            }
+
+            TextMeshProUGUI titleText = BuildCityDiceUiFactory.CreateDiceText(panelObj.transform, "TableTitle", 40f, new Vector2(0f, 330f));
+            titleText.color = new Color(1f, 0.95f, 0.58f, 1f);
+            titleText.text = secondRoll.HasValue
+                ? "BUILDING TABLE  —  FINAL PICK"
+                : "BUILDING TABLE  —  CATEGORY PICK";
+
+            TextMeshProUGUI hintText = BuildCityDiceUiFactory.CreateDiceText(panelObj.transform, "TableHint", 22f, new Vector2(0f, 286f));
+            hintText.rectTransform.sizeDelta = new Vector2(1120f, 58f);
+            hintText.color = new Color(0.78f, 0.91f, 1f, 1f);
+            hintText.text = secondRoll.HasValue
+                ? $"Column  {clampedFirstRoll}   ×   Row  {clampedSecondRoll}     →     {pickedLabel}"
+                : $"Column  {clampedFirstRoll}  is highlighted  —  roll again to pick a building.";
+
+            Button okButton = CreateTableOkButton(panelObj.transform, out TextMeshProUGUI okButtonText);
+
+            // 6 columns centred symmetrically: leftmost at -405, rightmost at +405.
+            const float startX = -405f;
+            const float startY = 168f;
+            const float cellWidth = 162f;
+            const float cellHeight = 76f;
+
+            // Column headers for the first die.
+            for (int col = 1; col <= 6; col++)
+            {
+                GameObject colObj = new GameObject($"ColHeader_{col}");
+                colObj.transform.SetParent(panelObj.transform, false);
+                RectTransform colRect = colObj.AddComponent<RectTransform>();
+                colRect.anchorMin = new Vector2(0.5f, 0.5f);
+                colRect.anchorMax = new Vector2(0.5f, 0.5f);
+                colRect.pivot = new Vector2(0.5f, 0.5f);
+                colRect.anchoredPosition = new Vector2(startX + ((col - 1) * cellWidth), startY + 72f);
+                colRect.sizeDelta = new Vector2(cellWidth - 6f, 54f);
+
+                Image colBg = colObj.AddComponent<Image>();
+                bool selectedColumn = col == clampedFirstRoll;
+                colBg.color = selectedColumn
+                    ? new Color(0.99f, 0.82f, 0.28f, 0.95f)
+                    : new Color(0.22f, 0.32f, 0.45f, 0.9f);
+
+                TextMeshProUGUI colText = BuildCityDiceUiFactory.CreateDiceText(colObj.transform, "HeaderText", 22f, Vector2.zero);
+                colText.rectTransform.sizeDelta = new Vector2(cellWidth - 6f, 54f);
+                colText.text = $"1st: {col}";
+                colText.color = selectedColumn
+                    ? new Color(0.09f, 0.08f, 0.05f, 1f)
+                    : new Color(0.88f, 0.94f, 1f, 1f);
+            }
+
+            RectTransform selectedCellRect = null;
+
+            // 6x6 table body: rows are second die, columns are first die.
+            for (int row = 1; row <= 6; row++)
+            {
+                GameObject rowLabelObj = new GameObject($"RowLabel_{row}");
+                rowLabelObj.transform.SetParent(panelObj.transform, false);
+                RectTransform rowLabelRect = rowLabelObj.AddComponent<RectTransform>();
+                rowLabelRect.anchorMin = new Vector2(0.5f, 0.5f);
+                rowLabelRect.anchorMax = new Vector2(0.5f, 0.5f);
+                rowLabelRect.pivot = new Vector2(1f, 0.5f);
+                // Place row labels just outside the first data column with a fixed gutter.
+                rowLabelRect.anchoredPosition = new Vector2(startX - (cellWidth * 0.5f) - 18f, startY - ((row - 1) * cellHeight));
+                rowLabelRect.sizeDelta = new Vector2(112f, cellHeight - 6f);
+
+                Image rowLabelBg = rowLabelObj.AddComponent<Image>();
+                rowLabelBg.color = secondRoll.HasValue && row == clampedSecondRoll
+                    ? new Color(0.99f, 0.82f, 0.28f, 0.95f)
+                    : new Color(0.22f, 0.32f, 0.45f, 0.9f);
+
+                TextMeshProUGUI rowLabelText = BuildCityDiceUiFactory.CreateDiceText(rowLabelObj.transform, "RowText", 21f, Vector2.zero);
+                                rowLabelText.rectTransform.sizeDelta = new Vector2(112f, cellHeight - 6f);
+                rowLabelText.text = $"2nd: {row}";
+                rowLabelText.color = secondRoll.HasValue && row == clampedSecondRoll
+                    ? new Color(0.09f, 0.08f, 0.05f, 1f)
+                    : new Color(0.88f, 0.94f, 1f, 1f);
+
+                for (int col = 1; col <= 6; col++)
+                {
+                    GameObject cellObj = new GameObject($"Cell_{col}_{row}");
+                    cellObj.transform.SetParent(panelObj.transform, false);
+
+                    RectTransform cellRect = cellObj.AddComponent<RectTransform>();
+                    cellRect.anchorMin = new Vector2(0.5f, 0.5f);
+                    cellRect.anchorMax = new Vector2(0.5f, 0.5f);
+                    cellRect.pivot = new Vector2(0.5f, 0.5f);
+                    cellRect.anchoredPosition = new Vector2(startX + ((col - 1) * cellWidth), startY - ((row - 1) * cellHeight));
+                    cellRect.sizeDelta = new Vector2(cellWidth - 8f, cellHeight - 8f);
+
+                    bool isSelectedColumn = col == clampedFirstRoll;
+                    bool isSelectedCell = secondRoll.HasValue && isSelectedColumn && row == clampedSecondRoll;
+
+                    Image cellBg = cellObj.AddComponent<Image>();
+                    if (isSelectedCell)
+                    {
+                        cellBg.color = new Color(0.98f, 0.92f, 0.46f, 0.98f);
+                        selectedCellRect = cellRect;
+                    }
+                    else if (isSelectedColumn)
+                    {
+                        cellBg.color = new Color(0.93f, 0.75f, 0.24f, 0.86f);
+                    }
+                    else
+                    {
+                        cellBg.color = new Color(0.16f, 0.24f, 0.35f, 0.9f);
+                    }
+
+                    if (GameData.BuildingRollTable.TryGetBuildingTypeFromRoll(col, row, out GameData.BuildingType tableType))
+                    {
+                        TextMeshProUGUI cellText = BuildCityDiceUiFactory.CreateDiceText(cellObj.transform, "CellText", 15f, Vector2.zero);
+                        cellText.rectTransform.sizeDelta = new Vector2(cellWidth - 10f, cellHeight - 6f);
+                        cellText.textWrappingMode = TextWrappingModes.Normal;
+                        cellText.enableAutoSizing = true;
+                        cellText.fontSizeMin = 14f;
+                        cellText.fontSizeMax = 18f;
+                        cellText.text = FormatBuildingTypeLabel(tableType);
+                        cellText.color = isSelectedCell
+                            ? new Color(0.1f, 0.08f, 0.03f, 1f)
+                            : new Color(0.92f, 0.96f, 1f, 1f);
+                    }
+                }
+            }
+
+            if (secondRoll.HasValue && selectedCellRect != null)
+            {
+
+                float pickElapsed = 0f;
+                const float pickDuration = 0.62f;
+                Vector3 baseScale = selectedCellRect.localScale;
+                while (pickElapsed < pickDuration)
+                {
+                    pickElapsed += Time.unscaledDeltaTime;
+                    float t = Mathf.Clamp01(pickElapsed / pickDuration);
+                    float pulse = 1f + Mathf.Sin(t * Mathf.PI * 3f) * 0.16f * (1f - t * 0.45f);
+                    selectedCellRect.localScale = baseScale * pulse;
+                    yield return null;
+                }
+
+                selectedCellRect.localScale = baseScale;
+            }
+            else
+            {
+                yield return new WaitForSeconds(0.55f);
+            }
+
+            yield return StartCoroutine(WaitForOkOrTimeout(okButton, okButtonText, 5f));
+
+            CanvasGroup fadeGroup = panelObj.AddComponent<CanvasGroup>();
+            float fadeElapsed = 0f;
+            const float fadeDuration = 0.33f;
+            while (fadeElapsed < fadeDuration)
+            {
+                fadeElapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(fadeElapsed / fadeDuration);
+                fadeGroup.alpha = 1f - t;
+                panelRect.localScale = Vector3.Lerp(new Vector3(1f, 1f, 1f), new Vector3(1.04f, 1.04f, 1f), t);
+                overlayBg.color = new Color(0.03f, 0.06f, 0.12f, Mathf.Lerp(0.18f, 0f, t));
+                yield return null;
+            }
+
+            Destroy(overlayObj);
+        }
+
+        private static Button CreateTableOkButton(Transform parent, out TextMeshProUGUI buttonText)
+        {
+            GameObject buttonObj = new GameObject("TableOkButton");
+            buttonObj.transform.SetParent(parent, false);
+
+            RectTransform buttonRect = buttonObj.AddComponent<RectTransform>();
+            buttonRect.anchorMin = new Vector2(0.5f, 0.5f);
+            buttonRect.anchorMax = new Vector2(0.5f, 0.5f);
+            buttonRect.pivot = new Vector2(0.5f, 0.5f);
+            buttonRect.anchoredPosition = new Vector2(0f, -328f);
+            buttonRect.sizeDelta = new Vector2(260f, 64f);
+
+            Image buttonBg = buttonObj.AddComponent<Image>();
+            buttonBg.color = new Color(0.93f, 0.75f, 0.24f, 0.92f);
+
+            Button button = buttonObj.AddComponent<Button>();
+            button.targetGraphic = buttonBg;
+
+            GameObject textObj = new GameObject("Label");
+            textObj.transform.SetParent(buttonObj.transform, false);
+
+            RectTransform textRect = textObj.AddComponent<RectTransform>();
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = Vector2.zero;
+            textRect.offsetMax = Vector2.zero;
+
+            buttonText = textObj.AddComponent<TextMeshProUGUI>();
+            buttonText.text = "OK";
+            buttonText.fontSize = 26f;
+            buttonText.alignment = TextAlignmentOptions.Center;
+            buttonText.color = new Color(0.1f, 0.08f, 0.03f, 1f);
+            buttonText.fontStyle = FontStyles.Bold;
+
+            return button;
+        }
+
+        private static IEnumerator WaitForOkOrTimeout(Button okButton, TextMeshProUGUI okButtonText, float timeoutSeconds)
+        {
+            if (okButton == null)
+            {
+                yield return new WaitForSeconds(Mathf.Max(0f, timeoutSeconds));
+                yield break;
+            }
+
+            bool pressed = false;
+            okButton.onClick.RemoveAllListeners();
+            okButton.onClick.AddListener(() => pressed = true);
+
+            float remaining = Mathf.Max(0.25f, timeoutSeconds);
+            while (!pressed && remaining > 0f)
+            {
+                if (okButtonText != null)
+                {
+                    okButtonText.text = $"OK ({Mathf.CeilToInt(remaining)})";
+                }
+
+                remaining -= Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            if (okButtonText != null)
+            {
+                okButtonText.text = "OK";
+            }
+        }
+
+        private static string FormatBuildingTypeLabel(GameData.BuildingType type)
+        {
+            if (type == GameData.BuildingType.None)
+            {
+                return "No Building";
+            }
+
+            string raw = type.ToString();
+            System.Text.StringBuilder formatted = new System.Text.StringBuilder(raw.Length + 8);
+            for (int i = 0; i < raw.Length; i++)
+            {
+                char ch = raw[i];
+                if (i > 0 && char.IsUpper(ch) && !char.IsUpper(raw[i - 1]))
+                {
+                    formatted.Append(' ');
+                }
+                formatted.Append(ch);
+            }
+
+            return formatted.ToString();
+        }
+
         // ── Shared dice-roll animation engine ─────────────────────────────────
 
         private IEnumerator PlayDiceRollAnimation(
@@ -581,7 +879,8 @@ namespace GlobalDomination.UI
             string actionTitle,
             string hintLabel,
             System.Action<int> onResult,
-            System.Func<int, string> resultFormatter)
+            System.Func<int, string> resultFormatter,
+            System.Func<IEnumerator> afterResultShown = null)
         {
             if (sceneCamera == null)
             {
@@ -968,6 +1267,17 @@ namespace GlobalDomination.UI
             Debug.Log($"City '{linkedCity?.cityName}' [{actionTitle}] roll: {finalRoll}");
 
             yield return new WaitForSeconds(2.5f);
+
+            // Clear dice overlay text so it doesn't bleed through the transparent table panel.
+            titleText.text = string.Empty;
+            hintText.text = string.Empty;
+            resultText.text = string.Empty;
+
+            // Show table overlay while camera is still aimed at the dice scene.
+            if (afterResultShown != null)
+            {
+                yield return StartCoroutine(afterResultShown());
+            }
 
             sceneCamera.transform.position = originalCamPos;
             sceneCamera.transform.rotation = originalCamRot;

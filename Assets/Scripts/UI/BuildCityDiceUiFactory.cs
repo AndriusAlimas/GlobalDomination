@@ -28,6 +28,7 @@ namespace GlobalDomination.UI
             text.alignment = TextAlignmentOptions.Center;
             text.fontStyle = FontStyles.Bold;
             text.color = Color.white;
+            text.raycastTarget = false;
             return text;
         }
 

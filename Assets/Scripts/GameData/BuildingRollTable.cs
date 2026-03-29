@@ -71,6 +71,14 @@ namespace GlobalDomination.GameData
         }
 
         /// <summary>
+        /// Gets the raw building type from specific dice values without creating a building instance or logging roll output.
+        /// </summary>
+        public static bool TryGetBuildingTypeFromRoll(int firstRoll, int secondRoll, out BuildingType type)
+        {
+            return TryGetBuildingType(firstRoll, secondRoll, out type);
+        }
+
+        /// <summary>
         /// Rolls for the first building a city gets.
         /// </summary>
         /// <returns>A Building instance. If None is rolled, automatically re-rolls until a valid building is obtained.</returns>
