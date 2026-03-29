@@ -887,6 +887,8 @@ namespace GlobalDomination.UI
                 yield break;
             }
 
+            EnsureAudioListenerForRoll(sceneCamera);
+
             Vector3 originalCamPos = sceneCamera.transform.position;
             Quaternion originalCamRot = sceneCamera.transform.rotation;
             float originalCamFov = sceneCamera.fieldOfView;
@@ -1227,6 +1229,7 @@ namespace GlobalDomination.UI
 
                     float linearSpeed = diceRb.linearVelocity.magnitude;
                     float angularSpeed = diceRb.angularVelocity.magnitude;
+
                     if (linearSpeed > 0.2f || angularSpeed > 0.2f)
                     {
                         motionDetected = true;
@@ -1292,6 +1295,44 @@ namespace GlobalDomination.UI
                 Destroy(activeDiceOverlay);
                 activeDiceOverlay = null;
             }
+        }
+
+        private static void EnsureAudioListenerForRoll(Camera sceneCamera)
+        {
+            if (sceneCamera == null)
+            {
+                return;
+            }
+
+            AudioListener[] listeners = Object.FindObjectsByType<AudioListener>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            bool hasEnabled = false;
+            for (int i = 0; i < listeners.Length; i++)
+            {
+                if (listeners[i] != null && listeners[i].enabled)
+                {
+                    hasEnabled = true;
+                    break;
+                }
+            }
+
+            AudioListener rollListener = sceneCamera.GetComponent<AudioListener>();
+            if (!hasEnabled)
+            {
+                if (rollListener == null)
+                {
+                    rollListener = sceneCamera.gameObject.AddComponent<AudioListener>();
+                    Debug.Log("[CityIconUI] Added AudioListener to roll camera for dice audio playback.");
+                }
+
+                if (!rollListener.enabled)
+                {
+                    rollListener.enabled = true;
+                    Debug.Log("[CityIconUI] Enabled AudioListener on roll camera for dice audio playback.");
+                }
+            }
+
+            AudioListener.pause = false;
+            AudioListener.volume = 1f;
         }
     }
 }

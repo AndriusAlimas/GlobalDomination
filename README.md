@@ -95,27 +95,21 @@ Buildings are obtained through a two-dice roll system (6x6 grid):
 
 ### Helpers
 
-- **DiceRoller.cs:** Utility for rolling dice (already existed)
+- **DiceRoller.cs:** D6 rolls, sums, and physical throw profile helpers used by the dice UI
+- **RuntimeUiCanvasHelper.cs:** Creates runtime overlay canvases (HUD / roll flows)
 
 ### Testing
 
-- **GameTester.cs:** Test script to verify game systems
+- **GameTester.cs:** Optional harness; ensures a `UITestManager` exists and exposes `RunGameTest` / `TestBuildingRolls` for the inspector
 
 ## How to Use
 
 ### Quick Test (In Unity Editor)
 
-1. Create an empty GameObject in your scene
-2. Add the `GameTester` component to it
-3. Press Play
-4. The test will automatically run and show dice rolls in the Console
-
-### Keyboard Controls (in Play Mode with GameTester)
-
-- **T:** Run game test again
-- **B:** Test 10 building rolls and show statistics
-- **N:** Advance to next player's turn
-- **P:** Print current game state to console
+1. Create an empty GameObject in your scene (or use an existing `GameTester` in `SampleScene`)
+2. Add the `GameTester` component if needed.
+3. Press Play — a `UITestManager` is created if the scene did not already have one.
+4. Use the **GameTester** component context menu or public methods in the Inspector to run `RunGameTest` or `TestBuildingRolls` and read output in the Console.
 
 ### Manual Setup
 

@@ -70,7 +70,6 @@ namespace GlobalDomination.Managers
         private CitiesDisplayManager citiesDisplayManager;
 
         private Image instructionsCardBackground;
-        
 
         private readonly System.Collections.Generic.Dictionary<CountryType, Sprite> generatedFlags =
             new System.Collections.Generic.Dictionary<CountryType, Sprite>();

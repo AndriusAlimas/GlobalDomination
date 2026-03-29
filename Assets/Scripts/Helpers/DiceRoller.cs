@@ -1,5 +1,4 @@
-using UnityEngine; // Needed for Random.Range
-using UnityEngine.UI;
+using UnityEngine;
 
 public static class DiceRoller
 {
@@ -124,25 +123,3 @@ public static class DiceRoller
     }
 }
 
-public static class RuntimeUiCanvasHelper
-{
-    /// <summary>
-    /// Creates a runtime Screen Space Overlay canvas with optional scale reference resolution.
-    /// </summary>
-    public static Canvas CreateScreenSpaceOverlayCanvas(string objectName, Vector2? referenceResolution = null)
-    {
-        GameObject canvasObject = new GameObject(objectName);
-        Canvas canvas = canvasObject.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-
-        CanvasScaler scaler = canvasObject.AddComponent<CanvasScaler>();
-        if (referenceResolution.HasValue)
-        {
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = referenceResolution.Value;
-        }
-
-        canvasObject.AddComponent<GraphicRaycaster>();
-        return canvas;
-    }
-}

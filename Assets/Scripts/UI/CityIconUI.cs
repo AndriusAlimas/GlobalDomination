@@ -51,6 +51,14 @@ namespace GlobalDomination.UI
         private static Sprite actionCardSprite;
         private static GameObject activeDiceOverlay;
         private static GameObject activeDiceWorldRoot;
+        private static AudioClip diceFloorImpactClip;
+        private static AudioClip diceWallImpactClip;
+
+        private enum DiceClackKind
+        {
+            Floor,
+            Wall
+        }
         
         private City linkedCity;
 
@@ -60,6 +68,7 @@ namespace GlobalDomination.UI
             public GameObject diceObject;
             public DiceStats diceStats;
             public Rigidbody rigidbody;
+            public DiceImpactAudio impactAudio;
             public RollDrop rollDrop;
             public Material floorMaterial;
             public PhysicsMaterial arenaPhysicsMaterial;
@@ -103,6 +112,177 @@ namespace GlobalDomination.UI
                 }
             }
         }
+
+        private enum DiceSurfaceType
+        {
+            Floor,
+            Wall
+        }
+
+        private sealed class DiceSurfaceTag : MonoBehaviour
+        {
+            public DiceSurfaceType surfaceType;
+        }
+
+        private sealed class DiceImpactAudio : MonoBehaviour
+        {
+            // Physics collisions only (no synthetic overlay) — one clack per real contact, lower gain.
+            private const float MinImpactCooldown = 0.068f;
+            private const float MinImpulse = 0.32f;
+            private const float ImpactGain = 0.38f;
+            private const float WallVolumeMax = 0.34f;
+            private const float FloorVolumeMax = 0.28f;
+            private const string GlobalAudioSourceName = "_CityIconUI_DiceAudioSource";
+
+            private AudioSource audioSource;
+            private AudioClip floorClip;
+            private AudioClip wallClip;
+            private float nextImpactTime;
+            private static AudioSource globalAudioSource;
+
+            public void Setup(AudioClip floor, AudioClip wall)
+            {
+                floorClip = floor;
+                wallClip = wall;
+
+                audioSource = gameObject.GetComponent<AudioSource>();
+                if (audioSource == null)
+                {
+                    audioSource = gameObject.AddComponent<AudioSource>();
+                }
+
+                audioSource.playOnAwake = false;
+                // Use 2D mix so impacts are always audible regardless of camera height.
+                audioSource.spatialBlend = 0f;
+                audioSource.minDistance = 3f;
+                audioSource.maxDistance = 80f;
+                audioSource.rolloffMode = AudioRolloffMode.Linear;
+                audioSource.dopplerLevel = 0.1f;
+                audioSource.volume = 1f;
+                audioSource.ignoreListenerPause = true;
+                audioSource.bypassEffects = true;
+                audioSource.bypassListenerEffects = true;
+                audioSource.bypassReverbZones = true;
+                audioSource.priority = 24;
+            }
+
+            private static AudioSource EnsureGlobalAudioSource()
+            {
+                if (globalAudioSource != null)
+                {
+                    globalAudioSource.volume = 0.92f;
+                    return globalAudioSource;
+                }
+
+                GameObject existing = GameObject.Find(GlobalAudioSourceName);
+                GameObject host = existing != null ? existing : new GameObject(GlobalAudioSourceName);
+                if (existing == null)
+                {
+                    Object.DontDestroyOnLoad(host);
+                }
+
+                globalAudioSource = host.GetComponent<AudioSource>();
+                if (globalAudioSource == null)
+                {
+                    globalAudioSource = host.AddComponent<AudioSource>();
+                }
+
+                globalAudioSource.playOnAwake = false;
+                globalAudioSource.spatialBlend = 0f;
+                globalAudioSource.volume = 0.92f;
+                globalAudioSource.ignoreListenerPause = true;
+                globalAudioSource.bypassEffects = true;
+                globalAudioSource.bypassListenerEffects = true;
+                globalAudioSource.bypassReverbZones = true;
+                globalAudioSource.priority = 0;
+                return globalAudioSource;
+            }
+
+            private AudioSource ResolvePlaybackSource()
+            {
+                AudioSource global = EnsureGlobalAudioSource();
+                if (global != null)
+                {
+                    return global;
+                }
+
+                return audioSource;
+            }
+
+            private void OnCollisionEnter(Collision collision)
+            {
+                TryPlayImpact(collision);
+            }
+
+            private void TryPlayImpact(Collision collision)
+            {
+                if (audioSource == null || Time.time < nextImpactTime || collision == null)
+                {
+                    return;
+                }
+
+                float impulseMetric = Mathf.Max(
+                    collision.impulse.magnitude,
+                    collision.relativeVelocity.magnitude * 0.45f);
+                if (impulseMetric < MinImpulse)
+                {
+                    return;
+                }
+
+                DiceSurfaceType surfaceType = ResolveSurfaceType(collision);
+                AudioClip clip = surfaceType == DiceSurfaceType.Wall ? wallClip : floorClip;
+                if (clip == null)
+                {
+                    return;
+                }
+
+                AudioSource playbackSource = ResolvePlaybackSource();
+                if (playbackSource == null)
+                {
+                    return;
+                }
+
+                float strength = Mathf.Clamp(impulseMetric, 0f, 14f);
+                float rawVol = surfaceType == DiceSurfaceType.Wall
+                    ? Mathf.Clamp01(0.11f + strength * 0.022f)
+                    : Mathf.Clamp01(0.09f + strength * 0.018f);
+                float cap = surfaceType == DiceSurfaceType.Wall ? WallVolumeMax : FloorVolumeMax;
+                float volume = Mathf.Min(rawVol, cap) * ImpactGain;
+
+                float basePitch = surfaceType == DiceSurfaceType.Wall ? 1.04f : 0.99f;
+                playbackSource.pitch = basePitch + Random.Range(-0.035f, 0.045f);
+                playbackSource.PlayOneShot(clip, volume);
+
+                nextImpactTime = Time.time + MinImpactCooldown;
+            }
+
+            private static DiceSurfaceType ResolveSurfaceType(Collision collision)
+            {
+                for (int i = 0; i < collision.contactCount; i++)
+                {
+                    ContactPoint point = collision.GetContact(i);
+                    Collider other = point.otherCollider;
+                    if (other == null)
+                    {
+                        continue;
+                    }
+
+                    DiceSurfaceTag tag = other.GetComponent<DiceSurfaceTag>();
+                    if (tag != null)
+                    {
+                        return tag.surfaceType;
+                    }
+
+                    string name = other.gameObject.name;
+                    if (name.Contains("Wall") || name.Contains("Corner"))
+                    {
+                        return DiceSurfaceType.Wall;
+                    }
+                }
+
+                return DiceSurfaceType.Floor;
+            }
+        }
         
         /// <summary>
         /// Creates a city icon UI programmatically with dynamic scaling based on population.
@@ -127,8 +307,8 @@ namespace GlobalDomination.UI
             float backgroundSize = citySize + 15f;
             float containerHeight = backgroundSize + 60f;
             
-            containerRect.anchorMin = new Vector2(0, 1);
-            containerRect.anchorMax = new Vector2(0, 1);
+            containerRect.anchorMin = new Vector2(0f, 1f);
+            containerRect.anchorMax = new Vector2(0f, 1f);
             containerRect.pivot = new Vector2(0.5f, 0.5f);
             containerRect.anchoredPosition = position;
             containerRect.sizeDelta = new Vector2(containerHeight, containerHeight);
@@ -141,7 +321,6 @@ namespace GlobalDomination.UI
             clickButton.targetGraphic = clickSurface;
             
             CityIconUI cityIconUI = container.AddComponent<CityIconUI>();
-            Debug.Log($"[CityIconUI] Created clickable button for {city.cityName}");
             clickButton.onClick.AddListener(cityIconUI.ShowActionMenu);
             
             // Background circle
@@ -205,16 +384,7 @@ namespace GlobalDomination.UI
             plateObj.transform.SetParent(container.transform, false);
             Image plateImage = plateObj.AddComponent<Image>();
             plateImage.sprite = CreatePopulationPlateSprite();
-            plateImage.color = city.isCapital
-                ? new Color(0.95f, 0.84f, 0.46f, 0.82f)
-                : new Color(0.9f, 0.95f, 1f, 0.8f);
-
-            if (usingCustomSprite)
-            {
-                plateImage.color = city.isCapital
-                    ? new Color(0.95f, 0.84f, 0.46f, 0.72f)
-                    : new Color(0.9f, 0.95f, 1f, 0.68f);
-            }
+            plateImage.color = new Color(0.95f, 0.84f, 0.46f, usingCustomSprite ? 0.72f : 0.82f);
 
             RectTransform plateRect = plateObj.GetComponent<RectTransform>();
             plateRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -333,9 +503,7 @@ namespace GlobalDomination.UI
             Image nameBg = nameBgObj.AddComponent<Image>();
             nameBg.sprite = CreateCityNameCardSprite();
             nameBg.type = Image.Type.Sliced;
-            nameBg.color = city.isCapital
-                ? new Color(0.95f, 0.84f, 0.46f, 0.88f)
-                : new Color(0.88f, 0.94f, 1f, 0.86f);
+            nameBg.color = new Color(0.95f, 0.84f, 0.46f, 0.88f);
 
             RectTransform nameBgRect = nameBgObj.GetComponent<RectTransform>();
             nameBgRect.anchorMin = new Vector2(0.5f, 0f);
@@ -1068,7 +1236,6 @@ namespace GlobalDomination.UI
 
         private void ShowActionMenu()
         {
-            Debug.Log("[CityIconUI] ShowActionMenu called!");
             if (linkedCity == null)
             {
                 Debug.LogError("[CityIconUI] ShowActionMenu: linkedCity is null!");
@@ -1081,7 +1248,6 @@ namespace GlobalDomination.UI
                 Debug.LogError("[CityIconUI] ShowActionMenu: No Canvas found in parent!");
                 return;
             }
-            Debug.Log("[CityIconUI] ShowActionMenu: Creating action menu for " + linkedCity.cityName);
 
             if (activeActionMenu != null && activeMenuOwner == this)
             {
@@ -1176,7 +1342,6 @@ namespace GlobalDomination.UI
             CreateMenuButton(panelObj.transform, new Vector2(0f, -40f), "4. Researching", () => OnActionClicked("Researching"));
             CreateMenuButton(panelObj.transform, new Vector2(0f, -88f), "5. Check Buildings", () => OnActionClicked("Check Buildings"));
             CreateMenuButton(panelObj.transform, new Vector2(0f, -136f), "6. Check Fort", () => OnActionClicked("Check Fort"));
-            Debug.Log("[CityIconUI] Action menu fully created with all buttons");
         }
 
         private void CreateMenuTitle(Transform parent, string title)
@@ -1441,6 +1606,8 @@ namespace GlobalDomination.UI
             {
                 floorCollider.sharedMaterial = arenaPhysicsMaterial;
             }
+            DiceSurfaceTag floorTag = floor.AddComponent<DiceSurfaceTag>();
+            floorTag.surfaceType = DiceSurfaceType.Floor;
 
             float halfExtent = 9.5f;
             float wallLength = halfExtent * 2f + 0.3f;
@@ -1500,6 +1667,10 @@ namespace GlobalDomination.UI
             rigidbody.angularDamping = 0.1f;
             rigidbody.WakeUp();
 
+            EnsureRuntimeDiceAudioClips();
+            DiceImpactAudio impactAudio = diceInstance.AddComponent<DiceImpactAudio>();
+            impactAudio.Setup(diceFloorImpactClip, diceWallImpactClip);
+
             RollDrop rollDrop = rootInstance.AddComponent<RollDrop>();
             SetPrivateField(rollDrop, "diceGroup", new List<GameObject> { diceInstance });
             SetPrivateField(rollDrop, "pickUpHeight", floorCenter.y + dicePickupHeight);
@@ -1539,6 +1710,7 @@ namespace GlobalDomination.UI
                 diceObject = diceInstance,
                 diceStats = diceStats,
                 rigidbody = rigidbody,
+                impactAudio = impactAudio,
                 rollDrop = rollDrop,
                 floorMaterial = floorMaterial,
                 arenaPhysicsMaterial = arenaPhysicsMaterial,
@@ -1583,6 +1755,9 @@ namespace GlobalDomination.UI
             {
                 collider.sharedMaterial = physicsMaterial;
             }
+
+            DiceSurfaceTag wallTag = wall.AddComponent<DiceSurfaceTag>();
+            wallTag.surfaceType = DiceSurfaceType.Wall;
 
             Renderer renderer = wall.GetComponent<Renderer>();
             if (renderer != null)
@@ -1678,6 +1853,9 @@ namespace GlobalDomination.UI
                 collider.sharedMaterial = physicsMaterial;
             }
 
+            DiceSurfaceTag wallTag = wall.AddComponent<DiceSurfaceTag>();
+            wallTag.surfaceType = DiceSurfaceType.Wall;
+
             Renderer renderer = wall.GetComponent<Renderer>();
             if (renderer != null)
             {
@@ -1699,6 +1877,9 @@ namespace GlobalDomination.UI
             {
                 collider.sharedMaterial = physicsMaterial;
             }
+
+            DiceSurfaceTag cornerTag = corner.AddComponent<DiceSurfaceTag>();
+            cornerTag.surfaceType = DiceSurfaceType.Wall;
 
             Renderer renderer = corner.GetComponent<Renderer>();
             if (renderer != null)
@@ -1745,6 +1926,132 @@ namespace GlobalDomination.UI
             Material material = new Material(shader);
             material.color = color;
             return material;
+        }
+
+        private static void EnsureRuntimeDiceAudioClips()
+        {
+            if (diceFloorImpactClip == null)
+            {
+                diceFloorImpactClip = LoadDiceClipOrPhysicalFallback("Audio/dice_floor_impact", DiceClackKind.Floor);
+            }
+
+            if (diceWallImpactClip == null)
+            {
+                diceWallImpactClip = LoadDiceClipOrPhysicalFallback("Audio/dice_wall_impact", DiceClackKind.Wall);
+            }
+        }
+
+        private static AudioClip LoadDiceClipOrPhysicalFallback(string resourcesPath, DiceClackKind kind)
+        {
+            AudioClip loaded = Resources.Load<AudioClip>(resourcesPath);
+            if (loaded != null)
+            {
+                return loaded;
+            }
+
+            string fallbackName = kind == DiceClackKind.Floor ? "DiceFloorClack" : "DiceWallClack";
+            return CreateRuntimeDiceClack(fallbackName, kind);
+        }
+
+        /// <summary>
+        /// Very short impact ("clack") like plastic dice on a hard surface: broadband noise + fast decay + faint body tone.
+        /// </summary>
+        private static AudioClip CreateRuntimeDiceClack(string clipName, DiceClackKind kind)
+        {
+            const int sampleRate = 44100;
+            float duration;
+            float noiseTau;
+            float brightness;
+            float toneLo;
+            float toneHi;
+            float toneMix;
+            float toneDecay;
+            float ringFreq;
+            float ringMix;
+            float outGain;
+            float attackRate;
+            float ringDecayRate;
+
+            if (kind == DiceClackKind.Wall)
+            {
+                duration = 0.052f;
+                noiseTau = 0.0078f;
+                brightness = 1.14f;
+                toneLo = 1180f;
+                toneHi = 2100f;
+                toneMix = 0.095f;
+                toneDecay = 48f;
+                ringFreq = Random.Range(3200f, 5200f);
+                ringMix = 0.22f;
+                outGain = 1f;
+                attackRate = 5200f;
+                ringDecayRate = 62f;
+            }
+            else
+            {
+                duration = 0.07f;
+                noiseTau = 0.012f;
+                brightness = 1f;
+                toneLo = 860f;
+                toneHi = 1320f;
+                toneMix = 0.12f;
+                toneDecay = 34f;
+                ringFreq = Random.Range(1800f, 3200f);
+                ringMix = 0.11f;
+                outGain = 1f;
+                attackRate = 5200f;
+                ringDecayRate = 62f;
+            }
+
+            float toneFreq = Random.Range(toneLo, toneHi);
+
+            int sampleCount = Mathf.Max(320, Mathf.RoundToInt(duration * sampleRate));
+            float[] samples = new float[sampleCount];
+            float phase = Random.Range(0f, Mathf.PI * 2f);
+
+            for (int i = 0; i < sampleCount; i++)
+            {
+                float t = i / (float)sampleRate;
+                float attack = 1f - Mathf.Exp(-t * attackRate);
+                float nEnv = Mathf.Exp(-t / noiseTau);
+                float w = (Random.value * 2f - 1f) * brightness;
+                if (kind == DiceClackKind.Wall)
+                {
+                    float a = Mathf.Abs(w);
+                    w = Mathf.Sign(w) * Mathf.Pow(a, 0.82f);
+                }
+
+                float noise = w * nEnv * attack;
+                float tEnv = Mathf.Exp(-t * toneDecay);
+                float body = Mathf.Sin(Mathf.PI * 2f * toneFreq * t + phase) * toneMix * tEnv * attack;
+                float ring = Mathf.Sin(Mathf.PI * 2f * ringFreq * t + phase * 0.27f) * ringMix * Mathf.Exp(-t * ringDecayRate) * attack;
+                float sample = (noise + body + ring) * outGain;
+                sample = sample / (1f + Mathf.Abs(sample) * 0.72f);
+                samples[i] = sample;
+            }
+
+            float peakAbs = 0f;
+            for (int i = 0; i < sampleCount; i++)
+            {
+                float a = Mathf.Abs(samples[i]);
+                if (a > peakAbs)
+                {
+                    peakAbs = a;
+                }
+            }
+
+            if (peakAbs > 0.0001f)
+            {
+                float normalize = 0.91f / peakAbs;
+                for (int i = 0; i < sampleCount; i++)
+                {
+                    samples[i] = Mathf.Clamp(samples[i] * normalize, -1f, 1f);
+                }
+            }
+
+            AudioClip clip = AudioClip.Create(clipName, sampleCount, 1, sampleRate, false);
+            clip.SetData(samples, 0);
+            return clip;
         }
 
         private static void SetPrivateField(object target, string fieldName, object value)
@@ -1826,7 +2133,6 @@ namespace GlobalDomination.UI
 
         public static void CloseActionMenu()
         {
-            Debug.Log("[CityIconUI] CloseActionMenu called");
             if (activeActionMenu == null)
             {
                 return;
@@ -1835,7 +2141,6 @@ namespace GlobalDomination.UI
             Destroy(activeActionMenu);
             activeActionMenu = null;
             activeMenuOwner = null;
-            Debug.Log("[CityIconUI] Action menu destroyed");
         }
 
         /// <summary>
@@ -1876,9 +2181,7 @@ namespace GlobalDomination.UI
 
             if (cityNameBackground != null)
             {
-                cityNameBackground.color = completed
-                    ? new Color(0.14f, 0.14f, 0.14f, 0.92f)
-                    : defaultCityNameBackgroundColor;
+                cityNameBackground.color = defaultCityNameBackgroundColor;
             }
 
             if (turnStatusDot != null)

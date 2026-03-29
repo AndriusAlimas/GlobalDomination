@@ -10,9 +10,12 @@ namespace GlobalDomination.UI
     public class CitiesDisplayManager : MonoBehaviour
     {
         [Header("Layout Settings")]
-        [SerializeField] private float iconSpacing = 525f;
+        [SerializeField] private bool stackVertically = true;
+        [SerializeField] private float horizontalSpacing = 525f;
+        [SerializeField] private float verticalSpacing = 320f;
         [SerializeField] private int iconsPerRow = 3;
-        [SerializeField] private Vector2 startPosition = new Vector2(0f, -320f);
+        [SerializeField] private Vector2 startPosition = new Vector2(220f, -320f);
+        [SerializeField] private float sidePadding = 120f;
         
         private RectTransform containerRect;
         private List<CityIconUI> cityIcons = new List<CityIconUI>();
@@ -68,6 +71,13 @@ namespace GlobalDomination.UI
         /// </summary>
         private Vector2 CalculateIconPosition(int index, int totalCities)
         {
+            if (stackVertically)
+            {
+                float verticalX = startPosition.x;
+                float verticalY = startPosition.y - (index * Mathf.Max(180f, verticalSpacing));
+                return new Vector2(verticalX, verticalY);
+            }
+
             int row = index / iconsPerRow;
             int col = index % iconsPerRow;
 
@@ -75,11 +85,22 @@ namespace GlobalDomination.UI
             int citiesRemaining = Mathf.Max(0, totalCities - rowStartIndex);
             int itemsInRow = Mathf.Min(iconsPerRow, citiesRemaining);
 
-            float rowWidth = (itemsInRow - 1) * iconSpacing;
+            float containerWidth = containerRect != null && containerRect.rect.width > 1f
+                ? containerRect.rect.width
+                : Mathf.Max(1200f, Screen.width * 0.9f);
+
+            float maxSpacingToFit = itemsInRow > 1
+                ? (containerWidth - (sidePadding * 2f)) / (itemsInRow - 1)
+                : horizontalSpacing;
+
+            float fitHorizontalSpacing = Mathf.Min(horizontalSpacing, maxSpacingToFit);
+            float fitVerticalSpacing = Mathf.Min(verticalSpacing, 420f);
+
+            float rowWidth = (itemsInRow - 1) * fitHorizontalSpacing;
             float rowLeftX = startPosition.x - (rowWidth * 0.5f);
             
-            float x = rowLeftX + (col * iconSpacing);
-            float y = startPosition.y - (row * iconSpacing);
+            float x = rowLeftX + (col * fitHorizontalSpacing);
+            float y = startPosition.y - (row * fitVerticalSpacing);
             
             return new Vector2(x, y);
         }
@@ -93,11 +114,11 @@ namespace GlobalDomination.UI
             container.transform.SetParent(canvas.transform, false);
             
             RectTransform rect = container.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 1f);
-            rect.anchorMax = new Vector2(0.5f, 1f);
-            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(0f, 1f);
+            rect.pivot = new Vector2(0f, 1f);
             rect.anchoredPosition = Vector2.zero;
-            rect.sizeDelta = new Vector2(1400f, 900f);
+            rect.sizeDelta = new Vector2(Mathf.Max(1200f, Screen.width * 0.92f), Mathf.Max(760f, Screen.height * 0.82f));
             
             CitiesDisplayManager manager = container.AddComponent<CitiesDisplayManager>();
             return manager;
