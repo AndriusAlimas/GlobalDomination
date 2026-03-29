@@ -49,8 +49,27 @@ namespace GlobalDomination.UI
 
             if (actionName == "Constructing")
             {
+                if (linkedCity.constructionProgress >= CityConstruction.PointsRequired)
+                {
+                    CloseActionMenu();
+                    return;
+                }
+
                 CloseActionMenu();
                 StartCoroutine(BuildCityRollSceneScope.Run(this, PlayConstructingDiceRollAnimation));
+                return;
+            }
+
+            if (actionName == "Finish building")
+            {
+                if (linkedCity.constructionProgress < CityConstruction.PointsRequired)
+                {
+                    CloseActionMenu();
+                    return;
+                }
+
+                CloseActionMenu();
+                StartCoroutine(BuildCityRollSceneScope.Run(this, PlayFinishConstructionBuildingRoll));
                 return;
             }
 
@@ -394,14 +413,59 @@ namespace GlobalDomination.UI
         }
 
         private IEnumerator PlayConstructingDiceRollAnimation(Canvas canvas, Camera sceneCamera)
-            => PlayDiceRollAnimation(canvas, sceneCamera,
+        {
+            if (linkedCity == null || linkedCity.constructionProgress >= CityConstruction.PointsRequired)
+            {
+                yield break;
+            }
+
+            yield return StartCoroutine(PlayDiceRollAnimation(
+                canvas,
+                sceneCamera,
                 "Constructing",
-                "Roll to earn gold from construction!",
+                "Face 1 = +1 point, face 3 = +2, face 6 = +3 (other faces = 0). Fill the bar, then use Finish building to roll for a new building.",
                 roll =>
                 {
-                    if (linkedCity != null) linkedCity.money += roll;
+                    if (linkedCity == null)
+                    {
+                        return;
+                    }
+
+                    int gained = CityConstruction.PointsFromDie(roll);
+                    linkedCity.constructionProgress = Mathf.Min(
+                        linkedCity.constructionProgress + gained,
+                        CityConstruction.PointsRequired);
+                    RefreshConstructionBarVisual();
                 },
-                roll => $"+{roll} Gold from construction!");
+                roll =>
+                {
+                    int gained = CityConstruction.PointsFromDie(roll);
+                    int p = linkedCity != null ? linkedCity.constructionProgress : 0;
+                    string pts = gained > 0
+                        ? $"+{gained} construction"
+                        : "No points (need 1, 3, or 6)";
+                    return $"{pts} — {p}/{CityConstruction.PointsRequired}";
+                }));
+        }
+
+        private IEnumerator PlayFinishConstructionBuildingRoll(Canvas canvas, Camera sceneCamera)
+        {
+            if (linkedCity == null)
+            {
+                yield break;
+            }
+
+            yield return StartCoroutine(PlayStartupBuildingRoll(linkedCity, canvas, sceneCamera, null));
+
+            linkedCity.constructionProgress = 0;
+            RefreshConstructionBarVisual();
+
+            UITestManager uiTestManager = Object.FindFirstObjectByType<UITestManager>();
+            if (uiTestManager != null)
+            {
+                uiTestManager.RefreshCurrentTurnDisplay();
+            }
+        }
 
         // ── Public method for startup building rolls ────────────────────────
 

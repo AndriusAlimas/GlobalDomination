@@ -14,8 +14,8 @@ using System.IO;
 namespace GlobalDomination.UI
 {
     /// <summary>
-    /// Represents a single city icon that grows visually based on population (Civilization-style).
-    /// Small city (1-9), Medium city (10-19), Large city (20-29), Metropolis (30+)
+    /// Single-city icon on the HUD. Population tier still selects building artwork (sprite variant),
+    /// but layout size is fixed so every city uses the same footprint.
     /// </summary>
     public partial class CityIconUI : MonoBehaviour
     {
@@ -32,6 +32,7 @@ namespace GlobalDomination.UI
         [SerializeField] private Image capitalStarIcon;
         [SerializeField] private Image backgroundCircle;
         [SerializeField] private Image turnStatusDot;
+        [SerializeField] private Image[] constructionBarSegments;
         [SerializeField] private CanvasGroup cityCanvasGroup;
         [SerializeField] private Color defaultBackgroundColor = Color.white;
         [SerializeField] private Color defaultCityIconColor = Color.white;
@@ -106,7 +107,7 @@ namespace GlobalDomination.UI
         }
 
         /// <summary>
-        /// Creates a city icon UI programmatically with dynamic scaling based on population.
+        /// Creates a city icon UI programmatically. Layout is a fixed size; population tier only affects which building sprite is shown.
         /// </summary>
         public static CityIconUI CreateCityIcon(Transform parent, Vector2 position, City city)
         {
@@ -116,17 +117,15 @@ namespace GlobalDomination.UI
             
             RectTransform containerRect = container.AddComponent<RectTransform>();
             
-            // Determine city size tier based on population
+            // Sprite variant by population tier (art only — UI scale is not tied to tier).
             int sizeTier = GetPopulationTier(city.healthPoints);
             Sprite customCitySprite = TryLoadCustomCitySprite(sizeTier);
             bool usingCustomSprite = customCitySprite != null;
             
-            // Scale based on tier
-            float sizeMultiplier = 1f + (sizeTier - 1) * 0.4f; // 1.0, 1.4, 1.8, 2.2
-            float baseSize = 150f; // +50% global city size increase
-            float citySize = baseSize * sizeMultiplier;
+            const float baseSize = 150f;
+            float citySize = baseSize;
             float backgroundSize = citySize + 15f;
-            float containerHeight = backgroundSize + 60f;
+            float containerHeight = backgroundSize + 86f;
             
             containerRect.anchorMin = new Vector2(0f, 1f);
             containerRect.anchorMax = new Vector2(0f, 1f);
@@ -158,8 +157,7 @@ namespace GlobalDomination.UI
             }
             else
             {
-                // Keep background dark but less muddy so city silhouette stays readable.
-                float darkness = 0.22f - (sizeTier - 1) * 0.015f;
+                const float darkness = 0.22f;
                 bgColor = new Color(darkness, darkness + 0.03f, darkness + 0.08f, 0.9f);
             }
             bgImage.color = bgColor;
@@ -219,7 +217,7 @@ namespace GlobalDomination.UI
             popTextObj.transform.SetParent(container.transform, false);
             TextMeshProUGUI popText = popTextObj.AddComponent<TextMeshProUGUI>();
             popText.text = city.healthPoints.ToString();
-            popText.fontSize = 22f + (sizeTier * 5f);
+            popText.fontSize = 27f;
             popText.fontStyle = FontStyles.Bold;
             popText.alignment = TextAlignmentOptions.Center;
             popText.color = new Color(0.08f, 0.1f, 0.16f, 1f);
@@ -265,7 +263,7 @@ namespace GlobalDomination.UI
             moneyTextObj.transform.SetParent(container.transform, false);
             TextMeshProUGUI moneyText = moneyTextObj.AddComponent<TextMeshProUGUI>();
             moneyText.text = city.money.ToString();
-            moneyText.fontSize = 16f + (sizeTier * 3f);
+            moneyText.fontSize = 19f;
             moneyText.fontStyle = FontStyles.Bold;
             moneyText.alignment = TextAlignmentOptions.Center;
             moneyText.color = new Color(0.02f, 0.35f, 0.08f, 1f);
@@ -302,7 +300,7 @@ namespace GlobalDomination.UI
             powerTextObj.transform.SetParent(container.transform, false);
             TextMeshProUGUI powerText = powerTextObj.AddComponent<TextMeshProUGUI>();
             powerText.text = city.cityPower.ToString();
-            powerText.fontSize = 16f + (sizeTier * 3f);
+            powerText.fontSize = 19f;
             powerText.fontStyle = FontStyles.Bold;
             powerText.alignment = TextAlignmentOptions.Center;
             powerText.color = new Color(0.6f, 0.02f, 0.0f, 1f);
@@ -317,6 +315,63 @@ namespace GlobalDomination.UI
             powerTextRect.sizeDelta = new Vector2(citySize * 0.42f, citySize * 0.24f);
             cityIconUI.powerText = powerText;
             cityIconUI.powerPlateImage = powerPlateImage;
+
+            // Segmented construction bar: gap above name, gap below main icon cluster.
+            float barWidth = Mathf.Min(containerHeight + 20f, 296f);
+            const float barHeight = 18f;
+            const float gapAboveName = 8f;
+            const float namePlateTopFromBottom = 3f + 56f;
+            float barBottomY = namePlateTopFromBottom + gapAboveName;
+
+            GameObject barTrackObj = new GameObject("ConstructionBarTrack");
+            barTrackObj.transform.SetParent(container.transform, false);
+            RectTransform barTrackRect = barTrackObj.AddComponent<RectTransform>();
+            barTrackRect.anchorMin = new Vector2(0.5f, 0f);
+            barTrackRect.anchorMax = new Vector2(0.5f, 0f);
+            barTrackRect.pivot = new Vector2(0.5f, 0f);
+            barTrackRect.anchoredPosition = new Vector2(0f, barBottomY);
+            barTrackRect.sizeDelta = new Vector2(barWidth, barHeight);
+
+            Image barTrackImage = barTrackObj.AddComponent<Image>();
+            barTrackImage.sprite = CreateCityNameCardSprite();
+            barTrackImage.type = Image.Type.Sliced;
+            barTrackImage.color = new Color(0.08f, 0.09f, 0.11f, 0.92f);
+
+            GameObject barSegmentsRow = new GameObject("ConstructionBarSegments");
+            barSegmentsRow.transform.SetParent(barTrackObj.transform, false);
+            RectTransform rowRect = barSegmentsRow.AddComponent<RectTransform>();
+            rowRect.anchorMin = Vector2.zero;
+            rowRect.anchorMax = Vector2.one;
+            rowRect.offsetMin = new Vector2(4f, 3f);
+            rowRect.offsetMax = new Vector2(-4f, -3f);
+
+            int segments = CityConstruction.SegmentCount;
+            float rowInnerWidth = barWidth - 8f;
+            float gap = 3f;
+            float segW = (rowInnerWidth - (segments - 1) * gap) / segments;
+
+            var segmentImages = new Image[segments];
+            Sprite segmentSprite = CreateCityNameCardSprite();
+            for (int si = 0; si < segments; si++)
+            {
+                GameObject segObj = new GameObject($"Segment_{si}");
+                segObj.transform.SetParent(barSegmentsRow.transform, false);
+                RectTransform segRt = segObj.AddComponent<RectTransform>();
+                segRt.anchorMin = new Vector2(0f, 0f);
+                segRt.anchorMax = new Vector2(0f, 1f);
+                segRt.pivot = new Vector2(0f, 0.5f);
+                segRt.anchoredPosition = new Vector2(si * (segW + gap), 0f);
+                segRt.sizeDelta = new Vector2(segW, 0f);
+
+                Image segImg = segObj.AddComponent<Image>();
+                segImg.sprite = segmentSprite;
+                segImg.type = Image.Type.Sliced;
+                segImg.raycastTarget = false;
+                segmentImages[si] = segImg;
+            }
+
+            cityIconUI.constructionBarSegments = segmentImages;
+            cityIconUI.RefreshConstructionBarVisual();
             
             // City name plate to keep label readable above busy icon art.
             GameObject nameBgObj = new GameObject("CityNamePlate");
@@ -338,7 +393,7 @@ namespace GlobalDomination.UI
             nameTextObj.transform.SetParent(container.transform, false);
             TextMeshProUGUI nameText = nameTextObj.AddComponent<TextMeshProUGUI>();
             nameText.text = city.cityName;
-            nameText.fontSize = 24f + (sizeTier * 3f); // Bigger city name for stronger readability
+            nameText.fontSize = 27f;
             nameText.fontStyle = FontStyles.Bold;
             nameText.fontWeight = FontWeight.Black;
             nameText.alignment = TextAlignmentOptions.Center;
@@ -403,9 +458,53 @@ namespace GlobalDomination.UI
             
             return cityIconUI;
         }
+
+        private void RefreshConstructionBarVisual()
+        {
+            if (constructionBarSegments == null || constructionBarSegments.Length == 0 || linkedCity == null)
+            {
+                return;
+            }
+
+            int progress = Mathf.Clamp(linkedCity.constructionProgress, 0, CityConstruction.PointsRequired);
+            int n = constructionBarSegments.Length;
+            for (int i = 0; i < n; i++)
+            {
+                Image img = constructionBarSegments[i];
+                if (img == null)
+                {
+                    continue;
+                }
+
+                bool filled = i < progress;
+                float heat = (i + 0.5f) / n;
+                if (filled)
+                {
+                    img.color = GetConstructionHeatColor(heat);
+                }
+                else
+                {
+                    img.color = new Color(0.14f, 0.14f, 0.16f, 0.72f);
+                }
+            }
+        }
+
+        private static Color GetConstructionHeatColor(float t)
+        {
+            t = Mathf.Clamp01(t);
+            Color red = new Color(0.9f, 0.2f, 0.22f, 1f);
+            Color yellow = new Color(0.98f, 0.82f, 0.18f, 1f);
+            Color green = new Color(0.22f, 0.78f, 0.4f, 1f);
+            if (t < 0.5f)
+            {
+                return Color.Lerp(red, yellow, t * 2f);
+            }
+
+            return Color.Lerp(yellow, green, (t - 0.5f) * 2f);
+        }
         
         /// <summary>
-        /// Gets the population tier (1-4) based on health points.
+        /// Population band (1–4) for sprite / artwork selection only.
         /// </summary>
         private static int GetPopulationTier(int population)
         {
@@ -1160,7 +1259,12 @@ namespace GlobalDomination.UI
             CreateMenuButton(panelObj.transform, new Vector2(0f, 104f), buildCityLabel, () => OnActionClicked("Build new city"), canBuildNewCity);
             CreateMenuButton(panelObj.transform, new Vector2(0f, 56f), "2. Upgrading", () => OnActionClicked("Upgrading"));
             CreateMenuButton(panelObj.transform, new Vector2(0f, 8f), "3. Building Power", () => OnActionClicked("Building Power"));
-            CreateMenuButton(panelObj.transform, new Vector2(0f, -40f), "4. Constructing", () => OnActionClicked("Constructing"));
+            bool constructionFull = linkedCity.constructionProgress >= CityConstruction.PointsRequired;
+            string constructionLabel = constructionFull
+                ? "4. Finish building"
+                : "4. Constructing";
+            string constructionAction = constructionFull ? "Finish building" : "Constructing";
+            CreateMenuButton(panelObj.transform, new Vector2(0f, -40f), constructionLabel, () => OnActionClicked(constructionAction));
             CreateMenuButton(panelObj.transform, new Vector2(0f, -88f), "5. Check Buildings", () => OnActionClicked("Check Buildings"));
             CreateMenuButton(panelObj.transform, new Vector2(0f, -136f), "6. Check Fort", () => OnActionClicked("Check Fort"));
         }

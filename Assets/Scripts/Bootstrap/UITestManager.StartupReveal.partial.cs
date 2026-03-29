@@ -217,13 +217,16 @@ namespace GlobalDomination.Managers
                 {
                     citiesDisplayManager.DisplayCities(player.ownedCities);
                 }
+
+                // Must hide before any yield — otherwise one frame shows full stat numbers.
+                HideVisibleCityBadges();
+
                 yield return null;
 
                 titleText.text = $"{player.playerName} Startup Roll";
                 subtitleText.text = capital.cityName;
 
                 CityIconUI targetIcon = FindCityIconForCity(capital);
-                targetIcon?.HideAllStatBadges();
 
                 List<int> healthRolls = GetStartupRolls(capital.startingHealthRolls, 3, capital.healthPoints);
                 List<int> moneyRolls = GetStartupRolls(capital.startingMoneyRolls, 2, capital.money);
@@ -507,10 +510,12 @@ namespace GlobalDomination.Managers
             {
                 citiesDisplayManager.DisplayCities(player.ownedCities);
             }
+
+            HideVisibleCityBadges();
+
             yield return null;
 
             CityIconUI targetIcon = FindCityIconForCity(foundedCity);
-            targetIcon?.HideAllStatBadges();
 
             List<int> healthRolls = GetStartupRolls(foundedCity.startingHealthRolls, 3, foundedCity.healthPoints);
             List<int> moneyRolls = GetStartupRolls(foundedCity.startingMoneyRolls, 2, foundedCity.money);

@@ -6,7 +6,7 @@ using GlobalDomination.UI;
 namespace GlobalDomination.UI.Hud
 {
     /// <summary>
-    /// Manages the display of all city icons in a grid layout with dynamic sizing.
+    /// Manages the display of all city icons in a grid layout.
     /// </summary>
     public class CitiesDisplayManager : MonoBehaviour
     {
