@@ -73,15 +73,281 @@ namespace GlobalDomination.UI
                 roll => roll >= 4 ? $"New building unlocked! (Roll: {roll})" : $"No building this time. (Roll: {roll})");
 
         private IEnumerator PlayUpgradingDiceRollAnimation(Canvas canvas, Camera sceneCamera)
-            => PlayDiceRollAnimation(canvas, sceneCamera,
+        {
+            int firstRoll = 0;
+            yield return StartCoroutine(PlayDiceRollAnimation(canvas, sceneCamera,
                 "Upgrading",
-                "Roll to earn upgrade points for your city!",
-                roll =>
+                "Roll 5 or 6 for a Lucky Roll reward!",
+                roll => firstRoll = roll,
+                roll => roll >= 5
+                    ? "<color=#FFD700>Lucky Roll!</color>"
+                    : "<color=#FF4444>Failed!</color>"));
+
+            if (linkedCity == null || firstRoll < 5)
+            {
+                yield break;
+            }
+
+            int slotRoll = 0;
+            yield return StartCoroutine(PlayUpgradeSlotAnimation(canvas, result => slotRoll = result));
+
+            if (linkedCity == null)
+            {
+                yield break;
+            }
+
+            bool rewardPopulation = (slotRoll % 2) == 1;
+            int rewardAmount = 0;
+
+            yield return StartCoroutine(PlayDiceRollAnimation(canvas, sceneCamera,
+                rewardPopulation ? "Population Reward" : "Money Reward",
+                rewardPopulation
+                    ? "Roll to determine gained population"
+                    : "Roll to determine gained money",
+                roll => rewardAmount = roll,
+                roll => rewardPopulation
+                    ? $"+{roll} Population!"
+                    : $"+{roll} Money!"));
+
+            if (rewardPopulation)
+            {
+                linkedCity.healthPoints += rewardAmount;
+                if (populationText != null)
                 {
-                    if (linkedCity != null) linkedCity.upgradePoints += roll;
-                    Debug.Log($"City '{linkedCity?.cityName}' gained {roll} upgrade points.");
-                },
-                roll => $"+{roll} Upgrade Point{(roll == 1 ? "" : "s")}!");
+                    populationText.text = linkedCity.healthPoints.ToString();
+                }
+
+                Debug.Log($"City '{linkedCity.cityName}' gained {rewardAmount} population (slot roll {slotRoll}).");
+            }
+            else
+            {
+                linkedCity.money += rewardAmount;
+                if (moneyText != null)
+                {
+                    moneyText.text = linkedCity.money.ToString();
+                }
+
+                Debug.Log($"City '{linkedCity.cityName}' gained {rewardAmount} money (slot roll {slotRoll}).");
+            }
+        }
+
+        // ── 2D Upgrade Slot Animation ──────────────────────────────────────────
+
+        private IEnumerator PlayUpgradeSlotAnimation(Canvas canvas, System.Action<int> onResult)
+        {
+            int finalValue = Random.Range(1, 7);
+
+            GameObject overlayObj = new GameObject("UpgradeSlotOverlay");
+            if (canvas != null)
+            {
+                overlayObj.transform.SetParent(canvas.transform, false);
+                overlayObj.transform.SetAsLastSibling();
+            }
+
+            RectTransform overlayRect = overlayObj.AddComponent<RectTransform>();
+            overlayRect.anchorMin = Vector2.zero;
+            overlayRect.anchorMax = Vector2.one;
+            overlayRect.offsetMin = Vector2.zero;
+            overlayRect.offsetMax = Vector2.zero;
+
+            Image overlayBg = overlayObj.AddComponent<Image>();
+            overlayBg.color = new Color(0.02f, 0.06f, 0.12f, 0.86f);
+            overlayBg.raycastTarget = true;
+
+            TextMeshProUGUI titleTmp = CreateSlotTextElement(overlayObj.transform, new Vector2(0f, 120f), new Vector2(500f, 60f), "LUCKY DICE", 38f, new Color(1f, 0.85f, 0.2f, 1f));
+            titleTmp.characterSpacing = 10f;
+            CreateSlotTextElement(overlayObj.transform, new Vector2(0f, 70f), new Vector2(500f, 40f), "Odd = Population   |   Even = Money", 18f, new Color(0.8f, 0.9f, 1f, 0.9f));
+
+            GameObject dieGo = new GameObject("SlotDie");
+            dieGo.transform.SetParent(overlayObj.transform, false);
+            RectTransform dieRect = dieGo.AddComponent<RectTransform>();
+            dieRect.anchorMin = new Vector2(0.5f, 0.5f);
+            dieRect.anchorMax = new Vector2(0.5f, 0.5f);
+            dieRect.pivot = new Vector2(0.5f, 0.5f);
+            dieRect.anchoredPosition = Vector2.zero;
+            dieRect.sizeDelta = new Vector2(120f, 120f);
+            Image dieImage = dieGo.AddComponent<Image>();
+            dieImage.raycastTarget = false;
+            dieImage.preserveAspect = true;
+
+            TextMeshProUGUI resultTmp = CreateSlotTextElement(overlayObj.transform, new Vector2(0f, -100f), new Vector2(500f, 60f), string.Empty, 30f, Color.white);
+
+            Sprite[] diceFaces = CreateSlotDiceFaceSprites();
+            dieImage.sprite = diceFaces[1];
+
+            float elapsed = 0f;
+            const float spinDuration = 1.1f;
+            const float stepDuration = 0.07f;
+            Vector3 baseScale = dieRect.localScale;
+
+            while (elapsed < spinDuration)
+            {
+                dieImage.sprite = diceFaces[Random.Range(1, 7)];
+                SlotSetDiceSpinVisual(dieRect, elapsed, spinDuration, baseScale);
+                elapsed += stepDuration;
+                yield return new WaitForSeconds(stepDuration);
+            }
+
+            for (int i = 0; i < 3; i++)
+            {
+                dieImage.sprite = diceFaces[Random.Range(1, 7)];
+                SlotSetDiceSpinVisual(dieRect, spinDuration + (i * stepDuration), spinDuration + (3f * stepDuration), baseScale);
+                yield return new WaitForSeconds(0.04f);
+            }
+
+            dieImage.sprite = diceFaces[Mathf.Clamp(finalValue, 1, 6)];
+            dieRect.localRotation = Quaternion.identity;
+            dieRect.localScale = baseScale;
+
+            float bounceTime = 0f;
+            const float bounceDuration = 0.14f;
+            while (bounceTime < bounceDuration)
+            {
+                bounceTime += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(bounceTime / bounceDuration);
+                float bump = Mathf.Sin(t * Mathf.PI) * 0.14f;
+                dieRect.localScale = baseScale * (1f + bump);
+                yield return null;
+            }
+            dieRect.localScale = baseScale;
+
+            bool isOdd = (finalValue % 2) == 1;
+            resultTmp.text = isOdd
+                ? "<color=#7CE2FF>ODD — Population Reward!</color>"
+                : "<color=#9CFF7C>EVEN — Money Reward!</color>";
+
+            yield return new WaitForSeconds(1.8f);
+
+            onResult?.Invoke(finalValue);
+            Destroy(overlayObj);
+        }
+
+        private static TextMeshProUGUI CreateSlotTextElement(Transform parent, Vector2 anchoredPos, Vector2 sizeDelta, string text, float fontSize, Color color)
+        {
+            GameObject go = new GameObject("SlotText");
+            go.transform.SetParent(parent, false);
+            RectTransform rect = go.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = anchoredPos;
+            rect.sizeDelta = sizeDelta;
+            TextMeshProUGUI tmp = go.AddComponent<TextMeshProUGUI>();
+            tmp.text = text;
+            tmp.fontSize = fontSize;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.color = color;
+            tmp.raycastTarget = false;
+            tmp.textWrappingMode = TextWrappingModes.NoWrap;
+            return tmp;
+        }
+
+        private static Sprite[] CreateSlotDiceFaceSprites()
+        {
+            Sprite[] faces = new Sprite[7];
+            for (int i = 1; i <= 6; i++)
+            {
+                faces[i] = CreateSlotDieFaceSprite(i);
+            }
+
+            return faces;
+        }
+
+        private static Sprite CreateSlotDieFaceSprite(int value)
+        {
+            const int size = 96;
+            Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            texture.filterMode = FilterMode.Bilinear;
+            texture.wrapMode = TextureWrapMode.Clamp;
+
+            Color faceColor = new Color(0.96f, 0.96f, 0.96f, 1f);
+            Color edgeColor = new Color(0.18f, 0.18f, 0.18f, 1f);
+            Color pipColor = new Color(0.03f, 0.03f, 0.03f, 1f);
+
+            const int border = 4;
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    bool isBorder = x < border || x >= size - border || y < border || y >= size - border;
+                    texture.SetPixel(x, y, isBorder ? edgeColor : faceColor);
+                }
+            }
+
+            Vector2 center = new Vector2(size * 0.5f, size * 0.5f);
+            float offset = size * 0.23f;
+            Vector2 topLeft = new Vector2(center.x - offset, center.y + offset);
+            Vector2 topRight = new Vector2(center.x + offset, center.y + offset);
+            Vector2 midLeft = new Vector2(center.x - offset, center.y);
+            Vector2 midRight = new Vector2(center.x + offset, center.y);
+            Vector2 botLeft = new Vector2(center.x - offset, center.y - offset);
+            Vector2 botRight = new Vector2(center.x + offset, center.y - offset);
+
+            const int pipRadius = 6;
+            if (value == 1 || value == 3 || value == 5)
+            {
+                SlotDrawPip(texture, center, pipRadius, pipColor);
+            }
+
+            if (value >= 2)
+            {
+                SlotDrawPip(texture, topLeft, pipRadius, pipColor);
+                SlotDrawPip(texture, botRight, pipRadius, pipColor);
+            }
+
+            if (value >= 4)
+            {
+                SlotDrawPip(texture, topRight, pipRadius, pipColor);
+                SlotDrawPip(texture, botLeft, pipRadius, pipColor);
+            }
+
+            if (value == 6)
+            {
+                SlotDrawPip(texture, midLeft, pipRadius, pipColor);
+                SlotDrawPip(texture, midRight, pipRadius, pipColor);
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
+        }
+
+        private static void SlotDrawPip(Texture2D texture, Vector2 center, int radius, Color color)
+        {
+            int minX = Mathf.Max(0, Mathf.FloorToInt(center.x - radius - 1));
+            int maxX = Mathf.Min(texture.width - 1, Mathf.CeilToInt(center.x + radius + 1));
+            int minY = Mathf.Max(0, Mathf.FloorToInt(center.y - radius - 1));
+            int maxY = Mathf.Min(texture.height - 1, Mathf.CeilToInt(center.y + radius + 1));
+
+            float maxDist = radius + 0.5f;
+            for (int y = minY; y <= maxY; y++)
+            {
+                for (int x = minX; x <= maxX; x++)
+                {
+                    float dx = x - center.x;
+                    float dy = y - center.y;
+                    if (Mathf.Sqrt(dx * dx + dy * dy) <= maxDist)
+                    {
+                        texture.SetPixel(x, y, color);
+                    }
+                }
+            }
+        }
+
+        private static void SlotSetDiceSpinVisual(RectTransform dieRect, float elapsed, float duration, Vector3 baseScale)
+        {
+            if (dieRect == null)
+            {
+                return;
+            }
+
+            float t = duration > 0.001f ? Mathf.Clamp01(elapsed / duration) : 1f;
+            float fastSpin = elapsed * 980f;
+            float settleSpin = Mathf.Lerp(1f, 0.25f, t);
+            dieRect.localRotation = Quaternion.Euler(0f, 0f, fastSpin * settleSpin);
+            float pulse = Mathf.Abs(Mathf.Sin(elapsed * 18f));
+            float flatten = Mathf.Lerp(0.72f, 0.96f, t) + (pulse * 0.08f * (1f - t));
+            dieRect.localScale = new Vector3(baseScale.x * flatten, baseScale.y, baseScale.z);
+        }
 
         private IEnumerator PlayBuildingPowerDiceRollAnimation(Canvas canvas, Camera sceneCamera)
         {

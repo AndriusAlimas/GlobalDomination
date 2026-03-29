@@ -13,6 +13,11 @@ namespace GlobalDomination.UI
     {
         public static bool IsRollInProgress { get; private set; }
 
+        private static Camera savedSourceCamera;
+        private static bool savedSourceCameraWasEnabled;
+        private static Scene savedRollScene;
+        private static readonly List<CanvasState> savedHiddenCanvases = new List<CanvasState>();
+
         private struct CanvasState
         {
             public Canvas canvas;
@@ -32,7 +37,12 @@ namespace GlobalDomination.UI
             bool sourceCameraWasEnabled = sourceCamera != null && sourceCamera.enabled;
             List<CanvasState> hiddenCanvases = new List<CanvasState>();
 
+            savedSourceCamera = sourceCamera;
+            savedSourceCameraWasEnabled = sourceCameraWasEnabled;
+            savedHiddenCanvases.Clear();
+
             Scene rollScene = SceneManager.CreateScene("BuildCityRollSceneRuntime");
+            savedRollScene = rollScene;
 
             GameObject rollCameraObj = new GameObject("BuildCityRollCamera");
             Camera rollCamera = rollCameraObj.AddComponent<Camera>();
@@ -55,6 +65,7 @@ namespace GlobalDomination.UI
             }
 
             HideAllOtherCanvases(rollCanvas, hiddenCanvases);
+            savedHiddenCanvases.AddRange(hiddenCanvases);
 
             IEnumerator rollRoutine = rollRoutineFactory(rollCanvas, rollCamera);
             if (rollRoutine != null)
@@ -126,6 +137,31 @@ namespace GlobalDomination.UI
             }
 
             hiddenCanvases.Clear();
+        }
+
+        /// <summary>
+        /// Force-resets the in-progress state and restores the source camera and canvases.
+        /// Call this when aborting mid-roll (e.g. dev skip).
+        /// </summary>
+        public static void ForceReset()
+        {
+            IsRollInProgress = false;
+
+            RestoreHiddenCanvases(savedHiddenCanvases);
+            savedHiddenCanvases.Clear();
+
+            if (savedSourceCamera != null)
+            {
+                savedSourceCamera.enabled = savedSourceCameraWasEnabled;
+            }
+
+            if (savedRollScene.IsValid() && savedRollScene.isLoaded)
+            {
+                SceneManager.UnloadSceneAsync(savedRollScene);
+            }
+
+            savedSourceCamera = null;
+            savedRollScene = default;
         }
     }
 }

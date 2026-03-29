@@ -11,26 +11,27 @@ namespace GlobalDomination.GameData
     {
         private const int DiceFaces = 6;
 
-        // 6x6 building table - first dimension is first dice roll, second is second dice roll
+        // 6x6 building table - first dimension is first dice roll (column), second is second dice roll (row)
+        // Columns match the handwritten table: 1=Spec-Force column, 2=Money Base column, etc.
         private static readonly BuildingType[,] rollTable = new BuildingType[DiceFaces, DiceFaces]
         {
             // First roll = 1
-            { BuildingType.Barack, BuildingType.Machinery, BuildingType.None, BuildingType.MoneyBuilder, BuildingType.Farm, BuildingType.Workshop },
-            
+            { BuildingType.SpecForce, BuildingType.PowerBase, BuildingType.Barraka, BuildingType.LowTech, BuildingType.DroneFactory, BuildingType.MutantLab },
+
             // First roll = 2
-            { BuildingType.MutantLaboratory, BuildingType.None, BuildingType.TrainingGround, BuildingType.Hospital, BuildingType.Bank, BuildingType.Factory },
-            
+            { BuildingType.MoneyBase, BuildingType.Barraka, BuildingType.MidTech, BuildingType.AirShipBase, BuildingType.LowTech, BuildingType.HighTech },
+
             // First roll = 3
-            { BuildingType.Laboratory, BuildingType.Mine, BuildingType.Port, BuildingType.None, BuildingType.Airport, BuildingType.PowerPlant },
-            
+            { BuildingType.LowTech, BuildingType.Barraka, BuildingType.MoneyBase, BuildingType.DroneFactory, BuildingType.None, BuildingType.MidTech },
+
             // First roll = 4
-            { BuildingType.University, BuildingType.ResearchCenter, BuildingType.Arsenal, BuildingType.Fortress, BuildingType.None, BuildingType.TradingPost },
-            
+            { BuildingType.MidTech, BuildingType.None, BuildingType.LowTech, BuildingType.SpecialWarBase, BuildingType.MoneyBase, BuildingType.ShipBase },
+
             // First roll = 5
-            { BuildingType.SpyNetwork, BuildingType.CommandCenter, BuildingType.RadioStation, BuildingType.Bunker, BuildingType.MissileBase, BuildingType.None },
-            
+            { BuildingType.ShipBase, BuildingType.None, BuildingType.MutantLab, BuildingType.Barraka, BuildingType.PowerBase, BuildingType.SpecForce },
+
             // First roll = 6
-            { BuildingType.NuclearReactor, BuildingType.None, BuildingType.SpaceCenter, BuildingType.CyberCenter, BuildingType.BioWeaponLab, BuildingType.CloneFactory }
+            { BuildingType.MutantLab, BuildingType.Barraka, BuildingType.SpecForce, BuildingType.HighTech, BuildingType.MainBase, BuildingType.NuclearWeapon }
         };
 
         /// <summary>
@@ -88,7 +89,7 @@ namespace GlobalDomination.GameData
             if (building == null)
             {
                 Debug.LogWarning("Failed to roll a valid building after max attempts. Defaulting to Barack.");
-                building = new Building(BuildingType.Barack);
+                building = new Building(BuildingType.Barraka);
             }
 
             return building;

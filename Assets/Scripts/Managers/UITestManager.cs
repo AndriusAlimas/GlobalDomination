@@ -23,11 +23,16 @@ namespace GlobalDomination.Managers
         private const float DefaultHudFlagGap = 10f;
         private const float DefaultHudTextWidth = 190f;
         private const float DefaultHudBlockHeight = 72f;
+        private static readonly Color EndTurnReadyColor = new Color(0.18f, 0.52f, 0.23f, 0.97f);
+        private static readonly Color EndTurnPendingColor = new Color(0.72f, 0.4f, 0.08f, 0.97f);
+        private static readonly Color EndTurnDisabledColor = new Color(0.28f, 0.3f, 0.34f, 0.94f);
 
         [Header("UI References")]
         [SerializeField] private TextMeshProUGUI currentPlayerText;
         [SerializeField] private Image currentPlayerFlagImage;
         [SerializeField] private TextMeshProUGUI instructionsText;
+        [SerializeField] private Button endTurnButton;
+        [SerializeField] private TextMeshProUGUI endTurnButtonText;
 
         [Header("Top Header Style")]
         [SerializeField] private bool useTopHeaderCard = false;
@@ -56,6 +61,7 @@ namespace GlobalDomination.Managers
         [SerializeField] private bool showHelpOnStart = false;
         [SerializeField] private KeyCode toggleHelpKey = KeyCode.H;
         [SerializeField] private bool showStartupStatRollReveal = true;
+        [SerializeField] private bool devShowSkipStartupButton = false;
         [SerializeField] private float startupStatSpinDuration = 1.7f;
         [SerializeField] private float startupAutoNextSeconds = 5f;
 
@@ -77,6 +83,9 @@ namespace GlobalDomination.Managers
         private int turnIteration = 1;
         private bool startupRevealInProgress;
         private Coroutine initializeGameCoroutine;
+        private Coroutine startupRevealCoroutine;
+        private Button devSkipStartupButton;
+        private GameObject startupRevealOverlayObj;
 
         private void Reset()
         {
@@ -105,14 +114,17 @@ namespace GlobalDomination.Managers
         private void Start()
         {
             EnsureUIReferences();
+            EnsureEndTurnButton();
+            EnsureDevSkipButton();
             BuildCurrentTurnHeaderPresenterIfNeeded(true);
             SetupInstructions();
             isHelpVisible = showHelpOnStart;
             ApplyHelpVisibility();
             BuildCurrentTurnHeaderPresenterIfNeeded(false);
             UpdateCardLayouts();
+            RefreshEndTurnButtonState();
 
-            if (autoInitializeGame)
+            if (autoInitializeGame || devShowSkipStartupButton)
             {
                 InitializeGame();
             }
@@ -316,6 +328,218 @@ namespace GlobalDomination.Managers
             return textComponent;
         }
 
+        private void EnsureDevSkipButton()
+        {
+            if (!devShowSkipStartupButton)
+            {
+                return;
+            }
+
+            if (devSkipStartupButton != null)
+            {
+                return;
+            }
+
+            Canvas canvas = FindFirstObjectByType<Canvas>();
+            if (canvas == null)
+            {
+                return;
+            }
+
+            GameObject buttonObject = new GameObject("DevSkipStartupButton");
+            buttonObject.transform.SetParent(canvas.transform, false);
+
+            RectTransform buttonRect = buttonObject.AddComponent<RectTransform>();
+            buttonRect.anchorMin = new Vector2(0f, 1f);
+            buttonRect.anchorMax = new Vector2(0f, 1f);
+            buttonRect.pivot = new Vector2(0f, 1f);
+            buttonRect.anchoredPosition = new Vector2(12f, -12f);
+            buttonRect.sizeDelta = new Vector2(190f, 50f);
+
+            Image buttonImage = buttonObject.AddComponent<Image>();
+            buttonImage.color = new Color(0.55f, 0.12f, 0.12f, 0.92f);
+
+            devSkipStartupButton = buttonObject.AddComponent<Button>();
+            ColorBlock colors = devSkipStartupButton.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1f, 0.85f, 0.85f, 1f);
+            colors.pressedColor = new Color(0.8f, 0.6f, 0.6f, 1f);
+            devSkipStartupButton.colors = colors;
+            devSkipStartupButton.onClick.AddListener(OnDevSkipStartupPressed);
+
+            TextMeshProUGUI label = CreateTextElement(
+                "DevSkipStartupButtonText",
+                buttonObject.transform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                Vector2.zero,
+                buttonRect.sizeDelta,
+                18f,
+                TextAlignmentOptions.Center,
+                Color.white);
+            label.text = "[DEV] Skip Startup";
+        }
+
+        private void OnDevSkipStartupPressed()
+        {
+            if (!startupRevealInProgress)
+            {
+                return;
+            }
+
+            // StopAllCoroutines kills every nested coroutine (including the 3D dice roll
+            // started inside PlayStartupStatRollReveal) so nothing re-disables canvases
+            // or the camera after we restore them.
+            StopAllCoroutines();
+            startupRevealCoroutine = null;
+            initializeGameCoroutine = null;
+
+            if (startupRevealOverlayObj != null)
+            {
+                Destroy(startupRevealOverlayObj);
+                startupRevealOverlayObj = null;
+            }
+
+            startupRevealInProgress = false;
+            BuildCityRollSceneScope.ForceReset();
+            RevealVisibleCityBadgeNumbers();
+            UpdateDisplay();
+        }
+
+        private void EnsureEndTurnButton()
+        {
+            if (endTurnButton == null)
+            {
+                Canvas canvas = FindFirstObjectByType<Canvas>();
+                if (canvas == null)
+                {
+                    canvas = RuntimeUiCanvasHelper.CreateScreenSpaceOverlayCanvas("RuntimeGameUICanvas");
+                }
+
+                GameObject buttonObject = new GameObject("EndTurnButton");
+                buttonObject.transform.SetParent(canvas.transform, false);
+
+                RectTransform buttonRect = buttonObject.AddComponent<RectTransform>();
+                buttonRect.anchorMin = new Vector2(1f, 0f);
+                buttonRect.anchorMax = new Vector2(1f, 0f);
+                buttonRect.pivot = new Vector2(1f, 0f);
+                buttonRect.anchoredPosition = new Vector2(-22f, 22f);
+                buttonRect.sizeDelta = new Vector2(270f, 68f);
+
+                Image buttonImage = buttonObject.AddComponent<Image>();
+                buttonImage.color = EndTurnPendingColor;
+
+                Outline border = buttonObject.AddComponent<Outline>();
+                border.effectColor = new Color(0f, 0f, 0f, 0.45f);
+                border.effectDistance = new Vector2(2f, -2f);
+                border.useGraphicAlpha = true;
+
+                endTurnButton = buttonObject.AddComponent<Button>();
+                ColorBlock colors = endTurnButton.colors;
+                colors.normalColor = Color.white;
+                colors.highlightedColor = new Color(0.94f, 0.97f, 1f, 1f);
+                colors.pressedColor = new Color(0.82f, 0.9f, 1f, 1f);
+                colors.disabledColor = new Color(0.68f, 0.68f, 0.68f, 0.7f);
+                endTurnButton.colors = colors;
+
+                endTurnButtonText = CreateTextElement(
+                    "EndTurnButtonText",
+                    buttonObject.transform,
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0.5f, 0.5f),
+                    Vector2.zero,
+                    buttonRect.sizeDelta,
+                    24f,
+                    TextAlignmentOptions.Center,
+                    Color.white);
+            }
+
+            if (endTurnButtonText == null && endTurnButton != null)
+            {
+                endTurnButtonText = endTurnButton.GetComponentInChildren<TextMeshProUGUI>();
+            }
+
+            if (endTurnButton != null)
+            {
+                endTurnButton.onClick.RemoveListener(OnEndTurnButtonPressed);
+                endTurnButton.onClick.AddListener(OnEndTurnButtonPressed);
+            }
+        }
+
+        private void OnEndTurnButtonPressed()
+        {
+            NextTurn();
+        }
+
+        private void RefreshEndTurnButtonState()
+        {
+            if (endTurnButton == null)
+            {
+                return;
+            }
+
+            if (BuildCityRollSceneScope.IsRollInProgress || startupRevealInProgress)
+            {
+                SetEndTurnButtonVisual("Rolling...", false, EndTurnDisabledColor, new Color(0.9f, 0.9f, 0.9f, 1f));
+                return;
+            }
+
+            if (gameManager == null || gameManager.players == null || gameManager.players.Count == 0)
+            {
+                SetEndTurnButtonVisual("End Turn", false, EndTurnDisabledColor, new Color(0.86f, 0.9f, 0.98f, 1f));
+                return;
+            }
+
+            Player currentPlayer = gameManager.GetCurrentPlayer();
+            if (currentPlayer == null || currentPlayer.ownedCities == null || currentPlayer.ownedCities.Count == 0)
+            {
+                SetEndTurnButtonVisual("End Turn", true, EndTurnReadyColor, Color.white);
+                return;
+            }
+
+            int remainingCities = 0;
+            for (int i = 0; i < currentPlayer.ownedCities.Count; i++)
+            {
+                City city = currentPlayer.ownedCities[i];
+                if (city != null && !city.hasTakenTurn)
+                {
+                    remainingCities++;
+                }
+            }
+
+            if (remainingCities <= 0)
+            {
+                SetEndTurnButtonVisual("End Turn - Ready", true, EndTurnReadyColor, Color.white);
+            }
+            else
+            {
+                string label = remainingCities == 1
+                    ? "End Turn (1 city left)"
+                    : $"End Turn ({remainingCities} cities left)";
+
+                SetEndTurnButtonVisual(label, true, EndTurnPendingColor, new Color(1f, 0.96f, 0.9f, 1f));
+            }
+        }
+
+        private void SetEndTurnButtonVisual(string label, bool interactable, Color backgroundColor, Color textColor)
+        {
+            endTurnButton.interactable = interactable;
+
+            Image background = endTurnButton.GetComponent<Image>();
+            if (background != null)
+            {
+                background.color = backgroundColor;
+            }
+
+            if (endTurnButtonText != null)
+            {
+                endTurnButtonText.text = label;
+                endTurnButtonText.color = textColor;
+            }
+        }
+
         private void SetupInstructions()
         {
             if (instructionsText == null)
@@ -334,7 +558,7 @@ R - Refresh Display
 H - Toggle Help Panel
 
 <b>UI Buttons:</b>
-Use the buttons below to test game functions
+Use city actions, then press End Turn (bottom-right)
 
 <b>Goal:</b>
 Test the dice rolling system and game initialization";
@@ -365,12 +589,14 @@ Test the dice rolling system and game initialization";
             gameManager.InitializeTestGame();
             turnIteration = 1;
 
-            if (showStartupStatRollReveal)
+            if (showStartupStatRollReveal || devShowSkipStartupButton)
             {
                 // Show world/cities, but hide badge values until each roll reveals them.
                 UpdateDisplay();
                 HideVisibleCityBadges();
-                yield return StartCoroutine(PlayStartupStatRollReveal());
+                startupRevealCoroutine = StartCoroutine(PlayStartupStatRollReveal());
+                yield return startupRevealCoroutine;
+                startupRevealCoroutine = null;
             }
             else
             {
@@ -397,8 +623,15 @@ Test the dice rolling system and game initialization";
             startupRevealInProgress = true;
 
             GameObject overlayObj = new GameObject("StartupRollRevealOverlay");
+            startupRevealOverlayObj = overlayObj;
             overlayObj.transform.SetParent(canvas.transform, false);
             overlayObj.transform.SetAsLastSibling();
+
+            // Keep the dev skip button always on top of the overlay.
+            if (devSkipStartupButton != null)
+            {
+                devSkipStartupButton.transform.SetAsLastSibling();
+            }
 
             RectTransform overlayRect = overlayObj.AddComponent<RectTransform>();
             overlayRect.anchorMin = Vector2.zero;
@@ -662,6 +895,7 @@ Test the dice rolling system and game initialization";
             }
 
             Destroy(overlayObj);
+            startupRevealOverlayObj = null;
             startupRevealInProgress = false;
             RevealVisibleCityBadgeNumbers();
             UpdateDisplay();
@@ -1338,6 +1572,7 @@ Test the dice rolling system and game initialization";
                 }
 
                 currentTurnHeaderUI?.Clear();
+                RefreshEndTurnButtonState();
                 return;
             }
 
@@ -1349,6 +1584,8 @@ Test the dice rolling system and game initialization";
             {
                 citiesDisplayManager.DisplayCities(currentPlayer.ownedCities);
             }
+
+            RefreshEndTurnButtonState();
         }
 
         private void UpdateCardLayouts()
@@ -1492,6 +1729,12 @@ Test the dice rolling system and game initialization";
 
         private void Update()
         {
+            if (endTurnButton == null)
+            {
+                EnsureEndTurnButton();
+            }
+
+            RefreshEndTurnButtonState();
             BuildCurrentTurnHeaderPresenterIfNeeded(false);
             UpdateCardLayouts();
 
