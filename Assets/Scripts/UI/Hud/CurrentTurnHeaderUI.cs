@@ -8,18 +8,9 @@ namespace GlobalDomination.UI.Hud
 {
     public struct CurrentTurnHeaderSettings
     {
-        public bool useCardStyle;
-        public bool useTopHeaderCard;
-
         public float topOffset;
         public float headerFontSize;
         public float countryFontSize;
-
-        public Sprite topCardSprite;
-        public Color topCardColor;
-        public Color cardBorderColor;
-        public Color cardShadowColor;
-        public Vector2 topCardPadding;
 
         // Player HUD right-corner layout — all tweakable live in the Inspector
         public float hudRightMargin;
@@ -43,7 +34,6 @@ namespace GlobalDomination.UI.Hud
         private readonly Func<CountryType, Sprite> resolveFlag;
         private readonly CurrentTurnHeaderSettings settings;
 
-        private Image currentPlayerCardBackground;
         private TextMeshProUGUI currentPlayerDetailsText;
         private TextMeshProUGUI currentPlayerCountryText;
 
@@ -82,24 +72,6 @@ namespace GlobalDomination.UI.Hud
 
         public void ApplyVisuals()
         {
-            if (settings.useCardStyle && settings.useTopHeaderCard)
-            {
-                currentPlayerCardBackground = EnsureCardBackground(
-                    currentPlayerText,
-                    currentPlayerCardBackground,
-                    "CurrentTurnCard",
-                    settings.topCardSprite,
-                    settings.topCardColor,
-                    settings.topCardPadding,
-                    settings.cardBorderColor,
-                    settings.cardShadowColor);
-            }
-
-            if (currentPlayerCardBackground != null)
-            {
-                currentPlayerCardBackground.gameObject.SetActive(settings.useCardStyle && settings.useTopHeaderCard);
-            }
-
             ConfigurePlayerDetailsPlacement();
             ConfigureFlagPlacement();
         }
@@ -274,80 +246,6 @@ namespace GlobalDomination.UI.Hud
             flagRect.anchoredPosition = new Vector2(-settings.hudRightMargin, centerY + 4f);
             flagRect.sizeDelta = new Vector2(settings.hudFlagWidth, settings.hudFlagHeight);
             currentPlayerFlagImage.preserveAspect = true;
-        }
-
-        private static Image EnsureCardBackground(
-            TextMeshProUGUI text,
-            Image existingCard,
-            string cardObjectName,
-            Sprite cardSprite,
-            Color cardColor,
-            Vector2 padding,
-            Color borderColor,
-            Color shadowColor)
-        {
-            if (text == null)
-            {
-                return existingCard;
-            }
-
-            Image card = existingCard;
-            if (card == null)
-            {
-                Transform parent = text.transform.parent;
-                if (parent == null)
-                {
-                    return null;
-                }
-
-                Transform cardTransform = parent.Find(cardObjectName);
-                if (cardTransform != null)
-                {
-                    card = cardTransform.GetComponent<Image>();
-                }
-
-                if (card == null)
-                {
-                    GameObject cardObject = new GameObject(cardObjectName);
-                    cardObject.transform.SetParent(parent, false);
-                    card = cardObject.AddComponent<Image>();
-                    cardObject.AddComponent<Outline>();
-                    cardObject.AddComponent<Shadow>();
-                }
-            }
-
-            RectTransform cardRect = card.rectTransform;
-            RectTransform textRect = text.rectTransform;
-
-            cardRect.anchorMin = textRect.anchorMin;
-            cardRect.anchorMax = textRect.anchorMax;
-            cardRect.pivot = textRect.pivot;
-            cardRect.anchoredPosition = textRect.anchoredPosition;
-            cardRect.sizeDelta = textRect.sizeDelta + new Vector2(padding.x * 2f, padding.y * 2f);
-
-            card.sprite = cardSprite;
-            card.type = cardSprite != null ? Image.Type.Sliced : Image.Type.Simple;
-            card.color = cardColor;
-            card.raycastTarget = false;
-
-            Outline border = card.GetComponent<Outline>();
-            if (border != null)
-            {
-                border.effectColor = borderColor;
-                border.effectDistance = new Vector2(1f, -1f);
-                border.useGraphicAlpha = true;
-            }
-
-            Shadow shadow = card.GetComponent<Shadow>();
-            if (shadow != null)
-            {
-                shadow.effectColor = shadowColor;
-                shadow.effectDistance = new Vector2(3f, -3f);
-                shadow.useGraphicAlpha = true;
-            }
-
-            card.transform.SetSiblingIndex(text.transform.GetSiblingIndex());
-            return card;
         }
 
         private void SetFlagImage(Sprite flag)

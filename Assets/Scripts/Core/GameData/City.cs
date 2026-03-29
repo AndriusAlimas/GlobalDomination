@@ -18,9 +18,9 @@ namespace GlobalDomination.GameData
         public List<int> startingPowerRolls;  // Individual startup D6 rolls for power
         public bool hasTakenTurn;     // Simple turn-done marker for UI dimming
         
-        // Buildings and upgrades
+        // Buildings and construction progress (e.g. toward a bonus building roll)
         public List<Building> buildings;
-        public int upgradePoints;
+        public int constructionProgress;
         
         // Units (fort)
         public List<string> unitsInFort;  // Will be expanded when unit system is implemented
@@ -39,7 +39,7 @@ namespace GlobalDomination.GameData
             startingHealthRolls = new List<int>();
             startingMoneyRolls = new List<int>();
             startingPowerRolls = new List<int>();
-            upgradePoints = 0;
+            constructionProgress = 0;
         }
 
         /// <summary>
@@ -98,41 +98,9 @@ namespace GlobalDomination.GameData
             }
         }
 
-        /// <summary>
-        /// Gets a summary string of the city's current state.
-        /// </summary>
-        public string GetCitySummary()
-        {
-            string summary = "";
-            summary += "\n═══════════════════════════════════════════════════════════════\n";
-            summary += $" ◆ {cityName}{(isCapital ? " ⭐ CAPITAL" : "")}\n";
-            summary += "═══════════════════════════════════════════════════════════════\n";
-            summary += $" Health Points: {healthPoints,-3}  |  Money: {money,-3}  |  City Power: {cityPower,-2}  |  Upgrades: {upgradePoints}\n";
-            summary += "───────────────────────────────────────────────────────────────\n";
-            summary += $" Buildings ({buildings.Count}):\n";
-            
-            if (buildings.Count == 0)
-            {
-                summary += "   → None\n";
-            }
-            else
-            {
-                foreach (var building in buildings)
-                {
-                    summary += $"   → {building}\n";
-                }
-            }
-            
-            summary += "───────────────────────────────────────────────────────────────\n";
-            summary += $" Units in Fort: {unitsInFort.Count}\n";
-            summary += "═══════════════════════════════════════════════════════════════";
-            
-            return summary;
-        }
-
         public override string ToString()
         {
-            return GetCitySummary();
+            return cityName;
         }
     }
 }

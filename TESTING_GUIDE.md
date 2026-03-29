@@ -107,19 +107,12 @@ Create 5 buttons:
    - Position: Below previous (Y: -580)
    - Button Text: "Test 10 Rolls"
 
-5. **Print State Button**
-   - Position: Below previous (Y: -640)
-   - Button Text: "Print to Console"
-
 #### Step 6: Setup UI Manager
 
 1. **Hierarchy** → Right-click → **Create Empty**
 2. Name it: "UITestManager"
 3. **Add Component** → Search "UI Test Manager"
-4. In the Inspector, assign the references:
-   - **Game Info Text**: Drag the GameInfoText object here
-   - **Current Player Text**: Drag the CurrentPlayerText object here
-   - **Instructions Text**: Drag the InstructionsText object here
+4. In the Inspector, assign the references (e.g. **Current Player Text**, **Current Player Flag Image** as needed).
 5. Check "Auto Initialize Game" (it's checked by default)
 
 #### Step 7: Connect Buttons
@@ -135,7 +128,6 @@ For each button:
    - Roll Building Button → `RollForBuilding()`
    - Next Turn Button → `NextTurn()`
    - Test 10 Rolls Button → `TestMultipleBuildingRolls()`
-   - Print State Button → `PrintGameState()`
 
 #### Step 8: Test!
 

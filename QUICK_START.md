@@ -17,12 +17,12 @@
 │  Player 1 - England      │  GAME TEST CONTROLS                       │
 │    London ★              │                                           │
 │    HP: 12 | Money: 7     │  Keyboard:                                │
-│    Power: 4              │   T - Initialize New Game                 │
-│    Buildings:            │   B - Roll for Building                   │
-│      • Barack            │   N - Next Turn                           │
-│      • Factory           │   P - Print to Console                    │
-│                          │   R - Refresh Display                     │
-│  Player 2 - Russia       │   M - Test 10 Rolls                       │
+│    Power: 4              │   B - Roll for Building                   │
+│    Buildings:            │   N - Next Turn                           │
+│      • Barack            │   R - Refresh Display                     │
+│      • Factory           │   M - Test 10 Rolls                       │
+│                          │                                           │
+│  Player 2 - Russia       │                                           │
 │    Moscow ★              │                                           │
 │    HP: 9 | Money: 10     │  UI Buttons:                              │
 │    Power: 6              │   Use buttons below                       │
@@ -36,7 +36,6 @@
 │                    [Roll for Building]                               │
 │                       [Next Turn]                                    │
 │                    [Test 10 Rolls]                                   │
-│                   [Print to Console]                                 │
 │                                                                       │
 └───────────────────────────────────────────────────────────────────────┘
 ```
@@ -117,7 +116,6 @@ For each button:
    - Roll for Building → RollForBuilding()
    - Next Turn → NextTurn()
    - Test 10 Rolls → TestMultipleBuildingRolls()
-   - Print to Console → PrintGameState()
 ```
 
 ✅ **Press Play! Everything should work!**

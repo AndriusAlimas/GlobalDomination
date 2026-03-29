@@ -170,9 +170,6 @@ Player currentPlayer = gm.GetCurrentPlayer();
 
 // Advance turns
 gm.NextTurn();
-
-// Check game state
-gm.PrintGameState();
 ```
 
 ### Rolling for Buildings

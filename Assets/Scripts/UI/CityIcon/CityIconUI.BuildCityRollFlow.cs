@@ -47,10 +47,10 @@ namespace GlobalDomination.UI
                 return;
             }
 
-            if (actionName == "Researching")
+            if (actionName == "Constructing")
             {
                 CloseActionMenu();
-                StartCoroutine(BuildCityRollSceneScope.Run(this, PlayResearchingDiceRollAnimation));
+                StartCoroutine(BuildCityRollSceneScope.Run(this, PlayConstructingDiceRollAnimation));
                 return;
             }
 
@@ -393,15 +393,15 @@ namespace GlobalDomination.UI
             return 3;
         }
 
-        private IEnumerator PlayResearchingDiceRollAnimation(Canvas canvas, Camera sceneCamera)
+        private IEnumerator PlayConstructingDiceRollAnimation(Canvas canvas, Camera sceneCamera)
             => PlayDiceRollAnimation(canvas, sceneCamera,
-                "Researching",
-                "Roll to generate gold from your researchers!",
+                "Constructing",
+                "Roll to earn gold from construction!",
                 roll =>
                 {
                     if (linkedCity != null) linkedCity.money += roll;
                 },
-                roll => $"+{roll} Gold from Research!");
+                roll => $"+{roll} Gold from construction!");
 
         // ── Public method for startup building rolls ────────────────────────
 

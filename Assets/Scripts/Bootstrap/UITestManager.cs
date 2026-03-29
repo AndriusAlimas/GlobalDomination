@@ -32,46 +32,20 @@ namespace GlobalDomination.Managers
         [Header("UI References")]
         [SerializeField] private TextMeshProUGUI currentPlayerText;
         [SerializeField] private Image currentPlayerFlagImage;
-        [SerializeField] private TextMeshProUGUI instructionsText;
         [SerializeField] private Button endTurnButton;
         [SerializeField] private TextMeshProUGUI endTurnButtonText;
 
-        [Header("Top Header Style")]
-        [SerializeField] private bool useTopHeaderCard = false;
-
-        [Header("Player HUD Layout")]
-        [SerializeField] private float hudRightMargin = 28f;
-        [SerializeField] private float hudFlagGap = 10f;
-        [SerializeField] private float hudTextWidth = 190f;
-        [SerializeField] private float hudBlockHeight = 72f;
-        [SerializeField] private Vector2 hudPlayerNameOffset = Vector2.zero;
-        [SerializeField] private Vector2 hudCountryOffset = Vector2.zero;
-
-        [Header("Card Visual Style")]
-        [SerializeField] private bool useCardStyle = true;
-        [SerializeField] private Sprite topCardSprite;
-        [SerializeField] private Sprite sideCardSprite;
-        [SerializeField] private Color topCardColor = new Color(0.07f, 0.12f, 0.2f, 0.8f);
-        [SerializeField] private Color sideCardColor = new Color(0.05f, 0.09f, 0.16f, 0.76f);
-        [SerializeField] private Color cardBorderColor = new Color(0.95f, 0.8f, 0.35f, 0.45f);
-        [SerializeField] private Color cardShadowColor = new Color(0f, 0f, 0f, 0.35f);
-        [SerializeField] private Vector2 topCardPadding = new Vector2(24f, 12f);
-        [SerializeField] private Vector2 sideCardPadding = new Vector2(16f, 14f);
-
         [Header("Settings")]
         [SerializeField] private bool autoInitializeGame = true;
-        [SerializeField] private bool showHelpOnStart = false;
-        [SerializeField] private KeyCode toggleHelpKey = KeyCode.H;
         [SerializeField] private bool showStartupStatRollReveal = true;
         [SerializeField] private bool devShowSkipStartupButton = false;
         [SerializeField] private float startupStatSpinDuration = 1.7f;
         [SerializeField] private float startupAutoNextSeconds = 5f;
+        [SerializeField] private float buildingRollFailToastSeconds = 2.75f;
 
         private GameManager gameManager;
         private CurrentTurnHeaderUI currentTurnHeaderUI;
         private CitiesDisplayManager citiesDisplayManager;
-
-        private Image instructionsCardBackground;
 
         private readonly System.Collections.Generic.Dictionary<CountryType, Sprite> generatedFlags =
             new System.Collections.Generic.Dictionary<CountryType, Sprite>();
@@ -80,13 +54,13 @@ namespace GlobalDomination.Managers
 
         private CurrentTurnHeaderSettings appliedHeaderSettings;
         private bool headerSettingsInitialized;
-        private bool isHelpVisible;
         private int turnIteration = 1;
         private bool startupRevealInProgress;
         private Coroutine initializeGameCoroutine;
         private Coroutine startupRevealCoroutine;
         private Button devSkipStartupButton;
         private GameObject startupRevealOverlayObj;
+        private Coroutine buildingRollFailToastCoroutine;
 
         private void Reset()
         {
@@ -96,13 +70,6 @@ namespace GlobalDomination.Managers
         [ContextMenu("Apply Player HUD Defaults")]
         private void ApplyPlayerHudDefaults()
         {
-            hudRightMargin = DefaultHudRightMargin;
-            hudFlagGap = DefaultHudFlagGap;
-            hudTextWidth = DefaultHudTextWidth;
-            hudBlockHeight = DefaultHudBlockHeight;
-            hudPlayerNameOffset = Vector2.zero;
-            hudCountryOffset = Vector2.zero;
-
             headerSettingsInitialized = false;
 
             if (Application.isPlaying)
@@ -118,9 +85,6 @@ namespace GlobalDomination.Managers
             EnsureEndTurnButton();
             EnsureDevSkipButton();
             BuildCurrentTurnHeaderPresenterIfNeeded(true);
-            SetupInstructions();
-            isHelpVisible = showHelpOnStart;
-            ApplyHelpVisibility();
             BuildCurrentTurnHeaderPresenterIfNeeded(false);
             UpdateCardLayouts();
             RefreshEndTurnButtonState();
@@ -162,37 +126,23 @@ namespace GlobalDomination.Managers
         {
             return new CurrentTurnHeaderSettings
             {
-                useCardStyle = useCardStyle,
-                useTopHeaderCard = useTopHeaderCard,
                 topOffset = DefaultTopOffset,
                 headerFontSize = DefaultHeaderFontSize,
                 countryFontSize = DefaultCountryFontSize,
-                topCardSprite = topCardSprite,
-                topCardColor = topCardColor,
-                cardBorderColor = cardBorderColor,
-                cardShadowColor = cardShadowColor,
-                topCardPadding = topCardPadding,
-                hudRightMargin = hudRightMargin,
+                hudRightMargin = DefaultHudRightMargin,
                 hudFlagWidth = DefaultHudFlagWidth,
                 hudFlagHeight = DefaultHudFlagHeight,
-                hudFlagGap = hudFlagGap,
-                hudTextWidth = hudTextWidth,
-                hudBlockHeight = hudBlockHeight
-                ,hudPlayerNameOffset = hudPlayerNameOffset,
-                hudCountryOffset = hudCountryOffset
+                hudFlagGap = DefaultHudFlagGap,
+                hudTextWidth = DefaultHudTextWidth,
+                hudBlockHeight = DefaultHudBlockHeight,
+                hudPlayerNameOffset = Vector2.zero,
+                hudCountryOffset = Vector2.zero
             };
         }
 
         private static bool HeaderSettingsEqual(CurrentTurnHeaderSettings a, CurrentTurnHeaderSettings b)
         {
-            return a.useCardStyle == b.useCardStyle
-                && a.useTopHeaderCard == b.useTopHeaderCard
-                && a.topCardSprite == b.topCardSprite
-                && a.topCardColor == b.topCardColor
-                && a.cardBorderColor == b.cardBorderColor
-                && a.cardShadowColor == b.cardShadowColor
-                && a.topCardPadding == b.topCardPadding
-                && Mathf.Approximately(a.hudRightMargin, b.hudRightMargin)
+            return Mathf.Approximately(a.hudRightMargin, b.hudRightMargin)
                 && Mathf.Approximately(a.hudFlagGap, b.hudFlagGap)
                 && Mathf.Approximately(a.hudTextWidth, b.hudTextWidth)
                 && Mathf.Approximately(a.hudBlockHeight, b.hudBlockHeight)
@@ -204,7 +154,7 @@ namespace GlobalDomination.Managers
         {
             EnsureEventSystem();
 
-            bool missingAnyReference = currentPlayerText == null || instructionsText == null;
+            bool missingAnyReference = currentPlayerText == null;
             if (!missingAnyReference)
             {
                 return;
@@ -251,21 +201,6 @@ namespace GlobalDomination.Managers
             if (citiesDisplayManager == null)
             {
                 citiesDisplayManager = CitiesDisplayManager.CreateCitiesDisplay(canvas);
-            }
-
-            if (instructionsText == null)
-            {
-                instructionsText = CreateTextElement(
-                    "InstructionsText",
-                    canvas.transform,
-                    new Vector2(1f, 0f),
-                    new Vector2(1f, 0f),
-                    new Vector2(1f, 0f),
-                    new Vector2(-20f, 20f),
-                    new Vector2(420f, 240f),
-                    16f,
-                    TextAlignmentOptions.BottomRight,
-                    new Color(0.85f, 0.9f, 1f, 1f));
             }
         }
 
@@ -539,30 +474,6 @@ namespace GlobalDomination.Managers
                 endTurnButtonText.text = label;
                 endTurnButtonText.color = textColor;
             }
-        }
-
-        private void SetupInstructions()
-        {
-            if (instructionsText == null)
-            {
-                return;
-            }
-
-            instructionsText.text = @"<b>GAME TEST CONTROLS</b>
-
-<b>Keyboard:</b>
-T - Initialize New Game
-B - Roll for Building
-N - Next Turn
-P - Print to Console
-R - Refresh Display
-H - Toggle Help Panel
-
-<b>UI Buttons:</b>
-Use city actions, then press End Turn (bottom-right)
-
-<b>Goal:</b>
-Test the dice rolling system and game initialization";
         }
 
         public void InitializeGame()
@@ -1059,7 +970,7 @@ Test the dice rolling system and game initialization";
         {
             if (gameManager == null)
             {
-                Debug.LogWarning("Game not initialized! Press T or click Initialize Game.");
+                Debug.LogWarning("Game not initialized!");
                 return;
             }
 
@@ -1071,14 +982,72 @@ Test the dice rolling system and game initialization";
             }
 
             City capital = currentPlayer.GetCapitalCity();
+            if (capital == null)
+            {
+                Debug.LogWarning("No capital city to add a building to.");
+                return;
+            }
+
             Building newBuilding = BuildingRollTable.RollForBuilding();
 
             if (newBuilding != null)
             {
                 capital.AddBuilding(newBuilding);
             }
+            else
+            {
+                ShowBuildingRollEmptySlotToast();
+            }
 
             UpdateDisplay();
+        }
+
+        private void ShowBuildingRollEmptySlotToast()
+        {
+            if (buildingRollFailToastCoroutine != null)
+            {
+                StopCoroutine(buildingRollFailToastCoroutine);
+            }
+
+            buildingRollFailToastCoroutine = StartCoroutine(BuildingRollEmptySlotToastRoutine());
+        }
+
+        private IEnumerator BuildingRollEmptySlotToastRoutine()
+        {
+            Canvas canvas = currentPlayerText != null ? currentPlayerText.canvas : FindFirstObjectByType<Canvas>();
+            if (canvas == null)
+            {
+                buildingRollFailToastCoroutine = null;
+                yield break;
+            }
+
+            GameObject toastObj = new GameObject("BuildingRollEmptySlotToast");
+            toastObj.transform.SetParent(canvas.transform, false);
+            toastObj.transform.SetAsLastSibling();
+
+            RectTransform toastRect = toastObj.AddComponent<RectTransform>();
+            toastRect.anchorMin = new Vector2(0.5f, 0.58f);
+            toastRect.anchorMax = new Vector2(0.5f, 0.58f);
+            toastRect.pivot = new Vector2(0.5f, 0.5f);
+            toastRect.anchoredPosition = Vector2.zero;
+            toastRect.sizeDelta = new Vector2(800f, 88f);
+
+            TextMeshProUGUI toastLabel = toastObj.AddComponent<TextMeshProUGUI>();
+            toastLabel.richText = true;
+            toastLabel.text =
+                "<b>Unlucky!</b>  Building roll failed — <color=#FFAB91>no building</color> this time (empty table slot).";
+            toastLabel.fontSize = 26f;
+            toastLabel.alignment = TextAlignmentOptions.Center;
+            toastLabel.color = new Color(1f, 0.96f, 0.9f, 1f);
+            toastLabel.raycastTarget = false;
+            if (TMP_Settings.defaultFontAsset != null)
+            {
+                toastLabel.font = TMP_Settings.defaultFontAsset;
+            }
+
+            yield return new WaitForSeconds(Mathf.Max(0.5f, buildingRollFailToastSeconds));
+            Destroy(toastObj);
+            buildingRollFailToastCoroutine = null;
         }
 
         public void NextTurn()
@@ -1107,17 +1076,6 @@ Test the dice rolling system and game initialization";
             }
 
             UpdateDisplay();
-        }
-
-        public void PrintGameState()
-        {
-            if (gameManager == null)
-            {
-                Debug.LogWarning("Game not initialized!");
-                return;
-            }
-
-            gameManager.PrintGameState();
         }
 
         public void TestMultipleBuildingRolls()
@@ -1165,128 +1123,6 @@ Test the dice rolling system and game initialization";
         private void UpdateCardLayouts()
         {
             currentTurnHeaderUI?.ApplyVisuals();
-            EnsureSideCards();
-        }
-
-        private void EnsureSideCards()
-        {
-            if (!useCardStyle)
-            {
-                if (instructionsCardBackground != null)
-                {
-                    instructionsCardBackground.gameObject.SetActive(false);
-                }
-
-                return;
-            }
-
-            // Note: We're not adding a card background for city icons display
-            // since they display as individual icons now
-
-            instructionsCardBackground = EnsureCardBackground(
-                instructionsText,
-                instructionsCardBackground,
-                "InstructionsCard",
-                sideCardSprite,
-                sideCardColor,
-                sideCardPadding);
-
-            if (instructionsCardBackground != null)
-            {
-                instructionsCardBackground.gameObject.SetActive(isHelpVisible);
-            }
-        }
-
-        private void ToggleHelpVisibility()
-        {
-            isHelpVisible = !isHelpVisible;
-            ApplyHelpVisibility();
-        }
-
-        private void ApplyHelpVisibility()
-        {
-            if (instructionsText != null)
-            {
-                instructionsText.gameObject.SetActive(isHelpVisible);
-            }
-
-            if (instructionsCardBackground != null)
-            {
-                instructionsCardBackground.gameObject.SetActive(useCardStyle && isHelpVisible);
-            }
-        }
-
-        private Image EnsureCardBackground(
-            TextMeshProUGUI text,
-            Image existingCard,
-            string cardObjectName,
-            Sprite cardSprite,
-            Color cardColor,
-            Vector2 padding)
-        {
-            if (text == null)
-            {
-                return existingCard;
-            }
-
-            Image card = existingCard;
-            if (card == null)
-            {
-                Transform parent = text.transform.parent;
-                if (parent == null)
-                {
-                    return null;
-                }
-
-                Transform cardTransform = parent.Find(cardObjectName);
-                if (cardTransform != null)
-                {
-                    card = cardTransform.GetComponent<Image>();
-                }
-
-                if (card == null)
-                {
-                    GameObject cardObject = new GameObject(cardObjectName);
-                    cardObject.transform.SetParent(parent, false);
-                    card = cardObject.AddComponent<Image>();
-                    cardObject.AddComponent<Outline>();
-                    cardObject.AddComponent<Shadow>();
-                }
-            }
-
-            RectTransform cardRect = card.rectTransform;
-            RectTransform textRect = text.rectTransform;
-
-            cardRect.anchorMin = textRect.anchorMin;
-            cardRect.anchorMax = textRect.anchorMax;
-            cardRect.pivot = textRect.pivot;
-            cardRect.anchoredPosition = textRect.anchoredPosition;
-            cardRect.sizeDelta = textRect.sizeDelta + new Vector2(padding.x * 2f, padding.y * 2f);
-
-            card.sprite = cardSprite;
-            card.type = cardSprite != null ? Image.Type.Sliced : Image.Type.Simple;
-            card.color = cardColor;
-            card.raycastTarget = false;
-
-            Outline border = card.GetComponent<Outline>();
-            if (border != null)
-            {
-                border.effectColor = cardBorderColor;
-                border.effectDistance = new Vector2(1f, -1f);
-                border.useGraphicAlpha = true;
-            }
-
-            Shadow shadow = card.GetComponent<Shadow>();
-            if (shadow != null)
-            {
-                shadow.effectColor = cardShadowColor;
-                shadow.effectDistance = new Vector2(3f, -3f);
-                shadow.useGraphicAlpha = true;
-            }
-
-            int textSibling = text.transform.GetSiblingIndex();
-            card.transform.SetSiblingIndex(Mathf.Max(0, textSibling - 1));
-            return card;
         }
 
         private Sprite ResolveFlagForCountry(CountryType country)
@@ -1317,25 +1153,13 @@ Test the dice rolling system and game initialization";
                 return;
             }
 
-            if (Input.GetKeyDown(toggleHelpKey))
-            {
-                ToggleHelpVisibility();
-            }
-            else if (Input.GetKeyDown(KeyCode.T))
-            {
-                InitializeGame();
-            }
-            else if (Input.GetKeyDown(KeyCode.B))
+            if (Input.GetKeyDown(KeyCode.B))
             {
                 RollForBuilding();
             }
             else if (Input.GetKeyDown(KeyCode.N))
             {
                 NextTurn();
-            }
-            else if (Input.GetKeyDown(KeyCode.P))
-            {
-                PrintGameState();
             }
             else if (Input.GetKeyDown(KeyCode.R))
             {

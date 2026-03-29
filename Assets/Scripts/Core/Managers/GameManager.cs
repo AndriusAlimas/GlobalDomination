@@ -165,13 +165,6 @@ namespace GlobalDomination.Managers
         }
 
         /// <summary>
-        /// Hook for debug/inspector callers. Text summaries live on <see cref="Player.GetPlayerSummary"/> and <see cref="City.GetCitySummary"/>; logging is intentionally silent.
-        /// </summary>
-        public void PrintGameState()
-        {
-        }
-
-        /// <summary>
         /// Gets all available countries.
         /// </summary>
         public CountryType[] GetAvailableCountries()

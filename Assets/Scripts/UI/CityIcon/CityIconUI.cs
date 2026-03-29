@@ -1160,7 +1160,7 @@ namespace GlobalDomination.UI
             CreateMenuButton(panelObj.transform, new Vector2(0f, 104f), buildCityLabel, () => OnActionClicked("Build new city"), canBuildNewCity);
             CreateMenuButton(panelObj.transform, new Vector2(0f, 56f), "2. Upgrading", () => OnActionClicked("Upgrading"));
             CreateMenuButton(panelObj.transform, new Vector2(0f, 8f), "3. Building Power", () => OnActionClicked("Building Power"));
-            CreateMenuButton(panelObj.transform, new Vector2(0f, -40f), "4. Researching", () => OnActionClicked("Researching"));
+            CreateMenuButton(panelObj.transform, new Vector2(0f, -40f), "4. Constructing", () => OnActionClicked("Constructing"));
             CreateMenuButton(panelObj.transform, new Vector2(0f, -88f), "5. Check Buildings", () => OnActionClicked("Check Buildings"));
             CreateMenuButton(panelObj.transform, new Vector2(0f, -136f), "6. Check Fort", () => OnActionClicked("Check Fort"));
         }

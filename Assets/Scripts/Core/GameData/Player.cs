@@ -68,48 +68,5 @@ namespace GlobalDomination.GameData
         {
             return ownedCities.Count == 0;
         }
-
-        /// <summary>
-        /// Gets a summary of all player's cities.
-        /// </summary>
-        public string GetPlayerSummary()
-        {
-            int totalHealth = 0;
-            int totalMoney = 0;
-            int totalPower = 0;
-            int totalUpgrades = 0;
-            int totalBuildings = 0;
-            int totalUnits = 0;
-
-            foreach (var city in ownedCities)
-            {
-                totalHealth += city.healthPoints;
-                totalMoney += city.money;
-                totalPower += city.cityPower;
-                totalUpgrades += city.upgradePoints;
-                totalBuildings += city.buildings.Count;
-                totalUnits += city.unitsInFort.Count;
-            }
-
-            string summary = "\n";
-            summary += "╔═══════════════════════════════════════════════════════════════╗\n";
-            summary += "║                      👑 PLAYER SUMMARY 👑                     ║\n";
-            summary += "╠═══════════════════════════════════════════════════════════════╣\n";
-            summary += $"║  Player Name:  {playerName,-45} ║\n";
-            summary += $"║  Country:      {selectedCountry,-45} ║\n";
-            summary += $"║  Cities Owned: {ownedCities.Count,-45} ║\n";
-            summary += "╠═══════════════════════════════════════════════════════════════╣\n";
-            summary += "║                        TOTAL STATISTICS                      ║\n";
-            summary += $"║  Health Points: {totalHealth,-4}  |  Total Money: {totalMoney,-6}  |  City Power: {totalPower,-3}  ║\n";
-            summary += $"║  Upgrade Points: {totalUpgrades,-4}  |  Buildings: {totalBuildings,-5}  |  Units in Forts: {totalUnits,-2}  ║\n";
-            summary += "╚═══════════════════════════════════════════════════════════════╝\n";
-
-            foreach (var city in ownedCities)
-            {
-                summary += city.GetCitySummary() + "\n";
-            }
-
-            return summary;
-        }
     }
 }
