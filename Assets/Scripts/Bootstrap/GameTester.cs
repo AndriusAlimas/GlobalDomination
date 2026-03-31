@@ -11,8 +11,9 @@ namespace GlobalDomination
     {
         private const int DefaultBuildingTestRolls = 10;
 
-        private void Start()
+        private void Awake()
         {
+            // Run before AfterSceneLoad music bootstrap so UITestManager exists for optional Background Music clip.
             EnsureHudUI();
         }
 

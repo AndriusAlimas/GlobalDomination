@@ -113,6 +113,28 @@ namespace GlobalDomination.Managers
         }
 
         /// <summary>
+        /// Finds a player by <see cref="City.ownerId"/> (or any matching <see cref="Player.playerId"/>).
+        /// </summary>
+        public Player GetPlayerByOwnerId(int ownerId)
+        {
+            if (players == null)
+            {
+                return null;
+            }
+
+            for (int i = 0; i < players.Count; i++)
+            {
+                Player p = players[i];
+                if (p != null && p.playerId == ownerId)
+                {
+                    return p;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Advances to the next player's turn.
         /// </summary>
         public void NextTurn()

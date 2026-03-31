@@ -35,6 +35,13 @@ namespace GlobalDomination.Managers
         [SerializeField] private Button endTurnButton;
         [SerializeField] private TextMeshProUGUI endTurnButtonText;
 
+        [Header("Audio")]
+        [Tooltip("Optional override. If empty, music loads automatically from StreamingAssets/Music or Resources/Music.")]
+        [SerializeField] private AudioClip backgroundMusic;
+
+        /// <summary> Optional clip for <see cref="GameMusicController"/> (read at startup). </summary>
+        public AudioClip BackgroundMusicClip => backgroundMusic;
+
         [Header("Settings")]
         [SerializeField] private bool autoInitializeGame = true;
         [SerializeField] private bool showStartupStatRollReveal = true;

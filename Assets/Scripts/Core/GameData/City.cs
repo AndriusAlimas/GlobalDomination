@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using GlobalDomination;
+using GlobalDomination.Managers;
 
 namespace GlobalDomination.GameData
 {
@@ -22,8 +23,8 @@ namespace GlobalDomination.GameData
         public List<Building> buildings;
         public int constructionProgress;
         
-        // Units (fort)
-        public List<string> unitsInFort;  // Will be expanded when unit system is implemented
+        // Units (fort) — see UnitCatalog / UnitDefinition for stats when persisting real units.
+        public List<string> unitsInFort;
         
         // Owner
         public int ownerId;  // Player ID who owns this city
@@ -89,10 +90,23 @@ namespace GlobalDomination.GameData
         /// </summary>
         public void AddBuilding(Building building)
         {
-            if (building != null)
+            if (building == null)
             {
-                buildings.Add(building);
+                return;
             }
+
+            CountryType country = CountryType.England;
+            if (GameManager.Instance != null)
+            {
+                Player owner = GameManager.Instance.GetPlayerByOwnerId(ownerId);
+                if (owner != null)
+                {
+                    country = owner.selectedCountry;
+                }
+            }
+
+            UnitCountryFlavorNames.AssignDisplayNameForPickup(country, building);
+            buildings.Add(building);
         }
 
         /// <summary>

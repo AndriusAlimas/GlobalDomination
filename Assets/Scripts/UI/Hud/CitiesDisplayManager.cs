@@ -6,21 +6,30 @@ using GlobalDomination.UI;
 namespace GlobalDomination.UI.Hud
 {
     /// <summary>
-    /// Manages the display of all city icons in a grid layout.
+    /// Manages city icons on the HUD. Default layout: 2 columns × 3 rows (max 6 cities).
     /// </summary>
     public class CitiesDisplayManager : MonoBehaviour
     {
+        public const int MaxCityIcons = 6;
+
         [Header("Layout Settings")]
-        [SerializeField] private bool stackVertically = true;
-        [SerializeField] private float horizontalSpacing = 525f;
-        [SerializeField] private float verticalSpacing = 320f;
-        [SerializeField] private int iconsPerRow = 3;
-        [SerializeField] private Vector2 startPosition = new Vector2(220f, -320f);
-        [SerializeField] private float sidePadding = 120f;
-        
+        [Tooltip("Legacy single-column stack. Leave off for 2×3 grid.")]
+        [SerializeField] private bool stackVertically = false;
+        [Tooltip("Center-to-center horizontal gap in a row (room for action menu).")]
+        [SerializeField] private float horizontalSpacing = 760f;
+        [Tooltip("Vertical gap between rows (centers).")]
+        [SerializeField] private float verticalSpacing = 300f;
+        [SerializeField] private int iconsPerRow = 2;
+        [Tooltip("Grid: only Y is used (first row). Legacy stack uses both X and Y.")]
+        [SerializeField] private Vector2 startPosition = new Vector2(0f, -280f);
+        [SerializeField] private float sidePadding = 100f;
+        [SerializeField] private float minHorizontalCenterSpacing = 680f;
+        [Tooltip("Half-width of city icon widget for left/right inset math (~CreateCityIcon footprint).")]
+        [SerializeField] private float cityIconApproxHalfWidth = 138f;
+
         private RectTransform containerRect;
         private List<CityIconUI> cityIcons = new List<CityIconUI>();
-        
+
         private void Awake()
         {
             containerRect = GetComponent<RectTransform>();
@@ -29,29 +38,32 @@ namespace GlobalDomination.UI.Hud
                 containerRect = gameObject.AddComponent<RectTransform>();
             }
         }
-        
+
         /// <summary>
         /// Displays cities in a grid layout.
         /// </summary>
         public void DisplayCities(List<City> cities)
         {
-            // Clear existing icons
             ClearCityIcons();
-            
+
             if (cities == null || cities.Count == 0)
             {
                 return;
             }
-            
-            // Create new icons
-            for (int i = 0; i < cities.Count; i++)
+
+            int count = Mathf.Min(cities.Count, MaxCityIcons);
+
+            UpdateContentSizeForCities(count);
+            Canvas.ForceUpdateCanvases();
+
+            for (int i = 0; i < count; i++)
             {
-                Vector2 position = CalculateIconPosition(i, cities.Count);
+                Vector2 position = CalculateIconPosition(i, count);
                 CityIconUI cityIcon = CityIconUI.CreateCityIcon(transform, position, cities[i]);
                 cityIcons.Add(cityIcon);
             }
         }
-        
+
         /// <summary>
         /// Clears all city icons.
         /// </summary>
@@ -64,12 +76,43 @@ namespace GlobalDomination.UI.Hud
                     Destroy(cityIcon.gameObject);
                 }
             }
+
             cityIcons.Clear();
         }
-        
-        /// <summary>
-        /// Calculates the position for a city icon based on its index.
-        /// </summary>
+
+        private void UpdateContentSizeForCities(int count)
+        {
+            if (containerRect == null)
+            {
+                return;
+            }
+
+            float contentWidth = Mathf.Max(containerRect.sizeDelta.x, 1400f);
+            float contentHeight = Mathf.Max(containerRect.sizeDelta.y, 820f);
+
+            if (stackVertically)
+            {
+                float per = Mathf.Max(180f, verticalSpacing);
+                float bottom = 420f;
+                contentHeight = Mathf.Max(contentHeight, Mathf.Abs(startPosition.y) + ((count - 1) * per) + bottom);
+            }
+            else
+            {
+                int cols = Mathf.Max(1, iconsPerRow);
+                int rows = Mathf.CeilToInt(count / (float)cols);
+                rows = Mathf.Clamp(rows, 1, 3);
+                float rowStep = Mathf.Max(180f, verticalSpacing);
+                float bottom = 360f;
+                contentHeight = Mathf.Max(contentHeight, Mathf.Abs(startPosition.y) + ((rows - 1) * rowStep) + bottom);
+
+                float hSpacing = Mathf.Max(minHorizontalCenterSpacing, horizontalSpacing);
+                float approxRowWidth = sidePadding * 2f + hSpacing + (cityIconApproxHalfWidth * 4f);
+                contentWidth = Mathf.Max(contentWidth, approxRowWidth);
+            }
+
+            containerRect.sizeDelta = new Vector2(contentWidth, contentHeight);
+        }
+
         private Vector2 CalculateIconPosition(int index, int totalCities)
         {
             if (stackVertically)
@@ -86,42 +129,70 @@ namespace GlobalDomination.UI.Hud
             int citiesRemaining = Mathf.Max(0, totalCities - rowStartIndex);
             int itemsInRow = Mathf.Min(iconsPerRow, citiesRemaining);
 
-            float containerWidth = containerRect != null && containerRect.rect.width > 1f
-                ? containerRect.rect.width
-                : Mathf.Max(1200f, Screen.width * 0.9f);
+            float layoutWidth = GetLayoutWidthForGrid();
 
-            float maxSpacingToFit = itemsInRow > 1
-                ? (containerWidth - (sidePadding * 2f)) / (itemsInRow - 1)
-                : horizontalSpacing;
+            float innerLeft = sidePadding + cityIconApproxHalfWidth;
+            float innerUsable = Mathf.Max(
+                1f,
+                layoutWidth - (2f * sidePadding) - (2f * cityIconApproxHalfWidth));
 
-            float fitHorizontalSpacing = Mathf.Min(horizontalSpacing, maxSpacingToFit);
+            float maxSpacingToFit = itemsInRow > 1 ? innerUsable / (itemsInRow - 1) : horizontalSpacing;
+
+            float fitHorizontalSpacing = Mathf.Max(
+                minHorizontalCenterSpacing,
+                Mathf.Min(horizontalSpacing, maxSpacingToFit));
             float fitVerticalSpacing = Mathf.Min(verticalSpacing, 420f);
 
-            float rowWidth = (itemsInRow - 1) * fitHorizontalSpacing;
-            float rowLeftX = startPosition.x - (rowWidth * 0.5f);
-            
-            float x = rowLeftX + (col * fitHorizontalSpacing);
+            // Left-anchored rows: col 0 is always near the left inset (does not sit under center popups).
+            float firstCenterX = innerLeft;
+
+            float x = firstCenterX + (col * fitHorizontalSpacing);
             float y = startPosition.y - (row * fitVerticalSpacing);
-            
+
             return new Vector2(x, y);
         }
-        
+
+        private float GetLayoutWidthForGrid()
+        {
+            if (containerRect == null)
+            {
+                return Mathf.Max(1200f, Screen.width * 0.92f);
+            }
+
+            float w = containerRect.rect.width;
+            if (w < 2f)
+            {
+                w = containerRect.sizeDelta.x;
+            }
+
+            return Mathf.Max(w, 800f);
+        }
+
         /// <summary>
-        /// Creates a cities display manager programmatically.
+        /// Creates the cities display: one container under the canvas (no scroll/zoom).
         /// </summary>
         public static CitiesDisplayManager CreateCitiesDisplay(Canvas canvas)
         {
             GameObject container = new GameObject("CitiesDisplayContainer");
             container.transform.SetParent(canvas.transform, false);
-            
+
             RectTransform rect = container.AddComponent<RectTransform>();
             rect.anchorMin = new Vector2(0f, 1f);
             rect.anchorMax = new Vector2(0f, 1f);
             rect.pivot = new Vector2(0f, 1f);
             rect.anchoredPosition = Vector2.zero;
             rect.sizeDelta = new Vector2(Mathf.Max(1200f, Screen.width * 0.92f), Mathf.Max(760f, Screen.height * 0.82f));
-            
+
             CitiesDisplayManager manager = container.AddComponent<CitiesDisplayManager>();
+            manager.stackVertically = false;
+            manager.iconsPerRow = 2;
+            manager.horizontalSpacing = 760f;
+            manager.verticalSpacing = 300f;
+            manager.startPosition = new Vector2(0f, -280f);
+            manager.minHorizontalCenterSpacing = 680f;
+            manager.sidePadding = 100f;
+            manager.cityIconApproxHalfWidth = 138f;
+
             return manager;
         }
     }

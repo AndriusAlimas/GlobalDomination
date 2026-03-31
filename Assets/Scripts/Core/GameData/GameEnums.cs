@@ -26,4 +26,14 @@ namespace GlobalDomination.GameData
         MainBase,
         NuclearWeapon
     }
+
+    /// <summary>
+    /// Which HP / power system a unit uses: Heart (P), Tech (★), or Aerial (A).
+    /// </summary>
+    public enum UnitHpCategory
+    {
+        Heart,
+        Tech,
+        Aerial
+    }
 }
