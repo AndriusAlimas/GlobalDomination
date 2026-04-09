@@ -10,7 +10,8 @@ namespace GlobalDomination.UI.Hud
     /// </summary>
     public class CitiesDisplayManager : MonoBehaviour
     {
-        public const int MaxCityIcons = 6;
+        /// <inheritdoc cref="Player.MaxOwnedCities"/>
+        public const int MaxCityIcons = Player.MaxOwnedCities;
 
         [Header("Layout Settings")]
         [Tooltip("Legacy single-column stack. Leave off for 2×3 grid.")]
@@ -62,6 +63,19 @@ namespace GlobalDomination.UI.Hud
                 CityIconUI cityIcon = CityIconUI.CreateCityIcon(transform, position, cities[i]);
                 cityIcons.Add(cityIcon);
             }
+        }
+
+        /// <summary>Returns the first HUD city icon rect (grid index 0), if any.</summary>
+        public bool TryGetFirstCityIconRect(out RectTransform cityIconRect)
+        {
+            cityIconRect = null;
+            if (cityIcons == null || cityIcons.Count == 0 || cityIcons[0] == null)
+            {
+                return false;
+            }
+
+            cityIconRect = cityIcons[0].transform as RectTransform;
+            return cityIconRect != null;
         }
 
         /// <summary>

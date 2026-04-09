@@ -1,0 +1,36 @@
+---
+description: C# structure, cohesion, namespaces, Unity serialization
+globs: Assets/Scripts/**/*.cs
+alwaysApply: false
+---
+
+# C# conventions (game scripts)
+
+See also **engineering-standards** (always apply): remove replaced code, prefer helpers, high cohesion / loose coupling.
+
+## Namespaces (match folder role)
+
+- `GlobalDomination.GameData` — model types under `Core/GameData/`; **no** `UnityEngine.UI` / view references here.
+- `GlobalDomination.Managers` — flow coordinators.
+- `GlobalDomination` — cross-cutting helpers (e.g. `DiceRoller` in `Core/Helpers/`).
+- `GlobalDomination.UI` — views and HUD; may depend on `GameData` / managers, not the reverse.
+
+## Structure and coupling
+
+- **Managers orchestrate;** widgets display and forward intent. Avoid **FindObjectOfType** / singleton sprawl for every little call—reuse existing access patterns in the file you edit.
+- **Pure logic** (dice, table lookup, formatting rules) belongs in **`Core/Helpers/`** or `GameData` static tables, not buried in coroutines unless it is genuinely presentation sequencing.
+
+## Large behaviours — partial classes
+
+- Split by feature: `ClassName.Feature.partial.cs` or `ClassName.Feature.cs` (e.g. `UITestManager.StartupReveal.partial.cs`, `CityIconUI.BuildCityRollFlow.cs`).
+- One **primary** file holds serialized fields and the class declaration; other parts are `public partial class` only—no duplicate field declarations.
+
+## Unity patterns
+
+- Inspector: `[SerializeField] private` and `[Header]`; **`FormerlySerializedAs`** when renaming serialized fields.
+- **Singletons** (e.g. `GameManager.Instance`): keep established **Awake** duplicate-destroy behavior.
+
+## Game data entry points
+
+- Buildings / rolls: `BuildingRollTable.cs`
+- Geography / countries: `CountryDatabase.cs`, `GameEnums.cs`

@@ -46,6 +46,8 @@ namespace GlobalDomination.Managers
         [SerializeField] private bool autoInitializeGame = true;
         [SerializeField] private bool showStartupStatRollReveal = true;
         [SerializeField] private bool devShowSkipStartupButton = false;
+        [SerializeField] private DevCapitalStartupConfig devStartupPlayer1 = new DevCapitalStartupConfig();
+        [SerializeField] private DevCapitalStartupConfig devStartupPlayer2 = new DevCapitalStartupConfig();
         [SerializeField] private float startupStatSpinDuration = 1.7f;
         [SerializeField] private float startupAutoNextSeconds = 5f;
         [SerializeField] private float buildingRollFailToastSeconds = 2.75f;
@@ -53,6 +55,7 @@ namespace GlobalDomination.Managers
         private GameManager gameManager;
         private CurrentTurnHeaderUI currentTurnHeaderUI;
         private CitiesDisplayManager citiesDisplayManager;
+        private readonly PlayerDivisionsStripUI playerDivisionsStrip = new PlayerDivisionsStripUI();
 
         private readonly System.Collections.Generic.Dictionary<CountryType, Sprite> generatedFlags =
             new System.Collections.Generic.Dictionary<CountryType, Sprite>();
@@ -68,6 +71,15 @@ namespace GlobalDomination.Managers
         private Button devSkipStartupButton;
         private GameObject startupRevealOverlayObj;
         private Coroutine buildingRollFailToastCoroutine;
+        private Coroutine divisionStripDeferredRefreshCoroutine;
+        private Canvas divisionStripDeferredCanvasHint;
+
+        private Image endTurnButtonBackground;
+        private bool endTurnButtonVisualCacheValid;
+        private string endTurnButtonCachedLabel;
+        private bool endTurnButtonCachedInteractable;
+        private Color endTurnButtonCachedBg;
+        private Color endTurnButtonCachedText;
 
         private void Reset()
         {
@@ -161,13 +173,19 @@ namespace GlobalDomination.Managers
         {
             EnsureEventSystem();
 
-            bool missingAnyReference = currentPlayerText == null;
-            if (!missingAnyReference)
+            Canvas canvas = null;
+            if (currentPlayerText != null)
             {
-                return;
+                canvas = currentPlayerText.canvas != null
+                    ? currentPlayerText.canvas
+                    : currentPlayerText.GetComponentInParent<Canvas>();
             }
 
-            Canvas canvas = FindFirstObjectByType<Canvas>();
+            if (canvas == null)
+            {
+                canvas = FindFirstObjectByType<Canvas>();
+            }
+
             if (canvas == null)
             {
                 canvas = RuntimeUiCanvasHelper.CreateScreenSpaceOverlayCanvas("RuntimeGameUICanvas");
@@ -203,12 +221,87 @@ namespace GlobalDomination.Managers
                 currentPlayerFlagImage = flagObject.AddComponent<Image>();
                 currentPlayerFlagImage.enabled = false;
             }
-            
-            // Create Cities Display Manager
+
+            if (citiesDisplayManager == null)
+            {
+                citiesDisplayManager = FindFirstObjectByType<CitiesDisplayManager>(FindObjectsInactive.Include);
+            }
+
             if (citiesDisplayManager == null)
             {
                 citiesDisplayManager = CitiesDisplayManager.CreateCitiesDisplay(canvas);
             }
+        }
+
+        /// <summary>
+        /// Canvas that owns the city HUD (prefer cities strip so division chips share the same canvas as London, etc.).
+        /// </summary>
+        private Canvas ResolveHudCanvas()
+        {
+            Canvas c = null;
+            if (citiesDisplayManager == null)
+            {
+                citiesDisplayManager = FindFirstObjectByType<CitiesDisplayManager>(FindObjectsInactive.Include);
+            }
+
+            if (citiesDisplayManager != null)
+            {
+                c = citiesDisplayManager.GetComponentInParent<Canvas>();
+            }
+
+            if (c == null && currentPlayerText != null)
+            {
+                c = currentPlayerText.canvas != null
+                    ? currentPlayerText.canvas
+                    : currentPlayerText.GetComponentInParent<Canvas>();
+            }
+
+            if (c == null)
+            {
+                c = FindFirstObjectByType<Canvas>();
+            }
+
+            return ToRootCanvas(c);
+        }
+
+        private static Canvas ToRootCanvas(Canvas c)
+        {
+            if (c == null)
+            {
+                return null;
+            }
+
+            return c.rootCanvas != null ? c.rootCanvas : c;
+        }
+
+        /// <summary>
+        /// Scene wiring may leave the serialized field unset even when <see cref="GameManager.Instance"/> exists.
+        /// </summary>
+        private void EnsureGameManagerReference()
+        {
+            if (gameManager == null)
+            {
+                gameManager = GameManager.Instance;
+            }
+        }
+
+        /// <summary>
+        /// Rebuilds only the division strip on the canvas you just used for Fort (fixes nested vs root canvas mismatches).
+        /// </summary>
+        public void RefreshDivisionStripUsingCanvas(Canvas hudCanvas)
+        {
+            EnsureGameManagerReference();
+            Canvas root = ToRootCanvas(hudCanvas != null ? hudCanvas : ResolveHudCanvas());
+            if (root == null)
+            {
+                return;
+            }
+
+            Player p = gameManager != null ? gameManager.GetCurrentPlayer() : null;
+            playerDivisionsStrip.Refresh(p, root, GetCurrentHeaderSettings());
+            Canvas.ForceUpdateCanvases();
+            playerDivisionsStrip.ForceRebuildStripLayout();
+            playerDivisionsStrip.BringToFront(root);
         }
 
         private void EnsureEventSystem()
@@ -379,6 +472,8 @@ namespace GlobalDomination.Managers
                 border.useGraphicAlpha = true;
 
                 endTurnButton = buttonObject.AddComponent<Button>();
+                endTurnButtonBackground = buttonImage;
+                endTurnButtonVisualCacheValid = false;
                 ColorBlock colors = endTurnButton.colors;
                 colors.normalColor = Color.white;
                 colors.highlightedColor = new Color(0.94f, 0.97f, 1f, 1f);
@@ -468,12 +563,37 @@ namespace GlobalDomination.Managers
 
         private void SetEndTurnButtonVisual(string label, bool interactable, Color backgroundColor, Color textColor)
         {
+            if (endTurnButton == null)
+            {
+                return;
+            }
+
+            if (endTurnButtonBackground != null
+                && endTurnButtonBackground.gameObject != endTurnButton.gameObject)
+            {
+                endTurnButtonBackground = null;
+                endTurnButtonVisualCacheValid = false;
+            }
+
+            if (endTurnButtonVisualCacheValid
+                && endTurnButtonCachedInteractable == interactable
+                && endTurnButtonCachedBg == backgroundColor
+                && endTurnButtonCachedText == textColor
+                && endTurnButtonCachedLabel == label)
+            {
+                return;
+            }
+
             endTurnButton.interactable = interactable;
 
-            Image background = endTurnButton.GetComponent<Image>();
-            if (background != null)
+            if (endTurnButtonBackground == null && endTurnButton != null)
             {
-                background.color = backgroundColor;
+                endTurnButtonBackground = endTurnButton.GetComponent<Image>();
+            }
+
+            if (endTurnButtonBackground != null)
+            {
+                endTurnButtonBackground.color = backgroundColor;
             }
 
             if (endTurnButtonText != null)
@@ -481,6 +601,12 @@ namespace GlobalDomination.Managers
                 endTurnButtonText.text = label;
                 endTurnButtonText.color = textColor;
             }
+
+            endTurnButtonVisualCacheValid = true;
+            endTurnButtonCachedLabel = label;
+            endTurnButtonCachedInteractable = interactable;
+            endTurnButtonCachedBg = backgroundColor;
+            endTurnButtonCachedText = textColor;
         }
 
         public void InitializeGame()
@@ -505,6 +631,11 @@ namespace GlobalDomination.Managers
 
             gameManager.InitializeTestGame();
             turnIteration = 1;
+
+            if (devShowSkipStartupButton)
+            {
+                ApplyDevStartupOverridesToTestCapitals();
+            }
 
             if (showStartupStatRollReveal || devShowSkipStartupButton)
             {
@@ -973,6 +1104,82 @@ namespace GlobalDomination.Managers
             return rolls;
         }
 
+        private DevCapitalStartupConfig GetDevStartupConfigForPlayerIndex(int playerIndex)
+        {
+            switch (playerIndex)
+            {
+                case 0:
+                    return devStartupPlayer1;
+                case 1:
+                    return devStartupPlayer2;
+                default:
+                    return null;
+            }
+        }
+
+        /// <summary>
+        /// When dev skip is on and the inspector lists preset extra buildings, startup skips the 3D building roll
+        /// (buildings already applied on the capital).
+        /// </summary>
+        public bool ShouldSkipStartupBuildingRollForPlayerIndex(int playerIndex)
+        {
+            if (!devShowSkipStartupButton)
+            {
+                return false;
+            }
+
+            DevCapitalStartupConfig cfg = GetDevStartupConfigForPlayerIndex(playerIndex);
+            return cfg != null && cfg.HasPresetExtraBuildings();
+        }
+
+        private void ApplyDevStartupOverridesToTestCapitals()
+        {
+            if (gameManager?.players == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < gameManager.players.Count; i++)
+            {
+                Player player = gameManager.players[i];
+                City capital = player != null ? player.GetCapitalCity() : null;
+                DevCapitalStartupConfig cfg = GetDevStartupConfigForPlayerIndex(i);
+                if (capital == null || cfg == null)
+                {
+                    continue;
+                }
+
+                int pop = Mathf.Max(1, cfg.population);
+                int money = Mathf.Max(1, cfg.money);
+                int power = Mathf.Max(1, cfg.power);
+
+                capital.healthPoints = pop;
+                capital.money = money;
+                capital.cityPower = power;
+
+                capital.startingHealthRolls = BuildFallbackRolls(3, capital.healthPoints);
+                capital.startingMoneyRolls = BuildFallbackRolls(2, capital.money);
+                capital.startingPowerRolls = BuildFallbackRolls(1, capital.cityPower);
+
+                capital.buildings.Clear();
+                capital.AddBuilding(new Building(BuildingType.MainBase));
+
+                if (cfg.extraStartupBuildings != null)
+                {
+                    for (int b = 0; b < cfg.extraStartupBuildings.Count; b++)
+                    {
+                        BuildingType t = cfg.extraStartupBuildings[b];
+                        if (t == BuildingType.None || t == BuildingType.MainBase)
+                        {
+                            continue;
+                        }
+
+                        capital.AddBuilding(new Building(t));
+                    }
+                }
+            }
+        }
+
         public void RollForBuilding()
         {
             if (gameManager == null)
@@ -1097,6 +1304,7 @@ namespace GlobalDomination.Managers
 
         private void UpdateDisplay()
         {
+            EnsureGameManagerReference();
             if (gameManager == null || gameManager.players.Count == 0)
             {
                 
@@ -1106,6 +1314,9 @@ namespace GlobalDomination.Managers
                 }
 
                 currentTurnHeaderUI?.Clear();
+                Canvas emptyCanvas = ResolveHudCanvas();
+
+                playerDivisionsStrip.Refresh(null, emptyCanvas, GetCurrentHeaderSettings());
                 RefreshEndTurnButtonState();
                 return;
             }
@@ -1117,14 +1328,116 @@ namespace GlobalDomination.Managers
             if (citiesDisplayManager != null && currentPlayer != null && currentPlayer.ownedCities != null)
             {
                 citiesDisplayManager.DisplayCities(currentPlayer.ownedCities);
+                Canvas.ForceUpdateCanvases();
             }
 
+            Canvas hudCanvas = ResolveHudCanvas();
+
+            playerDivisionsStrip.Refresh(currentPlayer, hudCanvas, GetCurrentHeaderSettings());
             RefreshEndTurnButtonState();
         }
 
         public void RefreshCurrentTurnDisplay()
         {
             UpdateDisplay();
+        }
+
+        /// <summary>
+        /// Call after opening a fullscreen HUD overlay so division chips are not covered by the dim layer.
+        /// </summary>
+        public void BringDivisionStripToFront()
+        {
+            Canvas hudCanvas = ResolveHudCanvas();
+
+            playerDivisionsStrip.BringToFront(hudCanvas);
+        }
+
+        public void CloseDivisionDetailIfOpen()
+        {
+            playerDivisionsStrip.CloseDivisionDetailIfOpen();
+        }
+
+        /// <summary>
+        /// Fort/division UI often calls <c>Destroy</c> the same frame as the strip rebuild; refresh again next frame so chips lay out visibly.
+        /// </summary>
+        public void ScheduleDivisionStripRefreshDeferred(Canvas canvasUsedForFortOrStrip = null)
+        {
+            divisionStripDeferredCanvasHint = ToRootCanvas(canvasUsedForFortOrStrip);
+
+            if (divisionStripDeferredRefreshCoroutine != null)
+            {
+                StopCoroutine(divisionStripDeferredRefreshCoroutine);
+            }
+
+            divisionStripDeferredRefreshCoroutine = StartCoroutine(CoDeferredDivisionStripRefresh());
+        }
+
+        private IEnumerator CoDeferredDivisionStripRefresh()
+        {
+            yield return null;
+            divisionStripDeferredRefreshCoroutine = null;
+
+            EnsureGameManagerReference();
+
+            Canvas hudCanvas = divisionStripDeferredCanvasHint != null
+                ? divisionStripDeferredCanvasHint
+                : ResolveHudCanvas();
+            divisionStripDeferredCanvasHint = null;
+
+            if (gameManager != null && gameManager.players.Count > 0)
+            {
+                playerDivisionsStrip.Refresh(gameManager.GetCurrentPlayer(), hudCanvas, GetCurrentHeaderSettings());
+            }
+            else
+            {
+                playerDivisionsStrip.Refresh(null, hudCanvas, GetCurrentHeaderSettings());
+            }
+
+            Canvas.ForceUpdateCanvases();
+            playerDivisionsStrip.ForceRebuildStripLayout();
+            playerDivisionsStrip.BringToFront(hudCanvas);
+        }
+
+        /// <summary>
+        /// Opens the division roster / redeploy UI (right HUD strip flow) instead of staying on the Fort panel.
+        /// </summary>
+        public void ShowHudDivisionDetailForCity(City city, int divisionNumber)
+        {
+            EnsureGameManagerReference();
+            if (city == null || divisionNumber <= 0 || gameManager == null)
+            {
+                return;
+            }
+
+            Player currentPlayer = gameManager.GetCurrentPlayer();
+            if (currentPlayer?.ownedCities == null)
+            {
+                return;
+            }
+
+            bool ownsCity = false;
+            for (int i = 0; i < currentPlayer.ownedCities.Count; i++)
+            {
+                if (currentPlayer.ownedCities[i] == city)
+                {
+                    ownsCity = true;
+                    break;
+                }
+            }
+
+            if (!ownsCity)
+            {
+                return;
+            }
+
+            Canvas hudCanvas = ResolveHudCanvas();
+
+            if (hudCanvas == null)
+            {
+                return;
+            }
+
+            playerDivisionsStrip.ShowDivisionDetailForCity(hudCanvas, currentPlayer, city, divisionNumber);
         }
 
         private void UpdateCardLayouts()

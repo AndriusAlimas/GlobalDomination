@@ -370,10 +370,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 91fbe1941ac004f48a75de964b107c6f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  runTestOnStart: 1
-  testBuildingRolls: 1
-  numberOfBuildingTests: 10
-  enableLegacyKeyboardShortcuts: 0
 --- !u!4 &1419461056
 Transform:
   m_ObjectHideFlags: 0
@@ -401,30 +397,27 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b31e7e7cb2559c6498a97aa0d55a0e9e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  gameInfoText: {fileID: 0}
   currentPlayerText: {fileID: 0}
   currentPlayerFlagImage: {fileID: 0}
-  instructionsText: {fileID: 0}
-  forceTopCenterForCurrentPlayer: 1
-  topOffset: 24
-  headerFontSize: 36
-  countryFontSize: 24
-  countryFlags: []
-  useTopHeaderCard: 0
-  standaloneFlagSize: {x: 100, y: 100}
-  standaloneFlagXOffset: 65.1
-  standaloneFlagYOffset: -81.3
-  standaloneHeaderTextXOffset: 80.7
-  useCardStyle: 1
-  topCardSprite: {fileID: 0}
-  sideCardSprite: {fileID: 0}
-  topCardColor: {r: 0.07, g: 0.12, b: 0.2, a: 0.8}
-  sideCardColor: {r: 0.05, g: 0.09, b: 0.16, a: 0.76}
-  cardBorderColor: {r: 0.95, g: 0.8, b: 0.35, a: 0.45}
-  cardShadowColor: {r: 0, g: 0, b: 0, a: 0.35}
-  topCardPadding: {x: 24, y: 12}
-  sideCardPadding: {x: 16, y: 14}
+  endTurnButton: {fileID: 0}
+  endTurnButtonText: {fileID: 0}
+  backgroundMusic: {fileID: 0}
   autoInitializeGame: 1
+  showStartupStatRollReveal: 1
+  devShowSkipStartupButton: 1
+  devStartupPlayer1:
+    population: 12
+    money: 50
+    power: 4
+    extraStartupBuildings: 03000000
+  devStartupPlayer2:
+    population: 12
+    money: 8
+    power: 4
+    extraStartupBuildings: 
+  startupStatSpinDuration: 1.7
+  startupAutoNextSeconds: 5
+  buildingRollFailToastSeconds: 2.75
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

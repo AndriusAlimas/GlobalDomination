@@ -1,7 +1,9 @@
 {
     "name": "GlobalDomination.Editor",
     "rootNamespace": "",
-    "references": [],
+    "references": [
+        "Assembly-CSharp"
+    ],
     "includePlatforms": [
         "Editor"
     ],

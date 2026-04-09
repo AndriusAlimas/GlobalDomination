@@ -38,6 +38,17 @@ namespace GlobalDomination.UI
                 return;
             }
 
+            if (actionName == "Build new city")
+            {
+                GameManager gm = GameManager.Instance;
+                Player owner = gm != null ? ResolveOwningPlayer(gm) : null;
+                if (owner == null || !owner.CanFoundAdditionalCity())
+                {
+                    CloseActionMenu();
+                    return;
+                }
+            }
+
             SetTurnCompleted(true);
 
             if (actionName == "Build new city")
@@ -128,6 +139,12 @@ namespace GlobalDomination.UI
             if (ownerPlayer == null)
             {
                 Debug.LogWarning("[CityIconUI] Cannot create new city: owner player not found.");
+                return;
+            }
+
+            if (!ownerPlayer.CanFoundAdditionalCity())
+            {
+                Debug.LogWarning("[CityIconUI] Cannot create new city: player already has the maximum number of cities.");
                 return;
             }
 

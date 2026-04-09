@@ -44,7 +44,7 @@ namespace GlobalDomination.GameData
             switch (category)
             {
                 case UnitHpCategory.Heart:
-                    return "Heart HP";
+                    return "HP";
                 case UnitHpCategory.Tech:
                     return "Tech HP";
                 case UnitHpCategory.Aerial:

@@ -1,0 +1,31 @@
+---
+description: Global Domination — Unity project layout, assemblies, and boundaries
+alwaysApply: true
+---
+
+# Global Domination — project context
+
+- **Engine:** Unity **6000.0.x** (Unity 6). Packages: URP, Input System, uGUI, TextMeshPro, Test Framework (see `Packages/manifest.json`).
+- **Domain:** Turn-based strategy; win by eliminating enemy cities. Dice (D6) drive city startup stats and building rolls. Source of truth for design intent: `README.md` and `TESTING_GUIDE.md`.
+
+## Script layout (`Assets/Scripts`)
+
+| Area | Path | Assembly |
+|------|------|----------|
+| Serializable model, dice tables, helpers | `Core/GameData/`, `Core/Helpers/` | **GlobalDomination.Core** |
+| Coordinators | `Core/Managers/` | **GlobalDomination.Core** |
+| Runtime UI / HUD / city icon | `UI/**`, `Bootstrap/**` | **Assembly-CSharp** (default) |
+| Editor-only tools | `**/Editor/**/*.cs` (e.g. `Bootstrap/Editor/`, `Scripts/Editor/`) | **GlobalDomination.Editor** or editor folders |
+
+- **Core asmdef** (`GlobalDomination.Core.asmdef`): only references under `Core/`. Do not reference UI or `MonoBehaviour` hubs from Core types unless already established (e.g. `City` may reference `GameManager` — follow existing patterns).
+- **Default assembly** references Core automatically; keep **avoiding Core ↔ UI circular dependencies** (see README “Optional GlobalDomination.UI assembly”).
+- Prefer extending **README** “Project layout” when adding major folders or entry points.
+
+## Assets
+
+- Do not bulk-edit generated Unity `.meta` files unless the task requires GUID preservation.
+- Third-party assets under `Assets/` may contain C#; prefer changing **`Assets/Scripts/**`** for game code.
+
+## Consistency with engineering standards
+
+- When touching this project, follow **engineering-standards.mdc**: remove replaced code, extract helpers when logic repeats, and respect Core/UI boundaries for maintainability.

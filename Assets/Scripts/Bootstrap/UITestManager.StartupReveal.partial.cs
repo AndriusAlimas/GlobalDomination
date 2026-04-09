@@ -271,29 +271,61 @@ namespace GlobalDomination.Managers
                 targetIcon?.RevealPowerBadgeNumber();
                 yield return StartCoroutine(WaitForNextOrTimeout(nextButton, nextButtonText, countdownText, countdownBgObj, "Next Roll", startupAutoNextSeconds));
 
-                // ── Roll for Building with 3D Dice ────────────────────────
-                Building rolledBuilding = null;
-                int buildingRollOne = 0;
-                int buildingRollTwo = 0;
-                yield return StartCoroutine(BuildCityRollSceneScope.Run(this,
-                    (rollCanvas, rollCamera) => CityIconUI.PlayStartupBuildingRoll(
-                        capital,
-                        rollCanvas,
-                        rollCamera,
-                        (building, roll1, roll2) =>
+                // ── Roll for Building with 3D Dice (skipped when dev inspector presets extras) ──
+                if (ShouldSkipStartupBuildingRollForPlayerIndex(playerIndex))
+                {
+                    System.Text.StringBuilder namesBuilder = new System.Text.StringBuilder();
+                    if (capital.buildings != null)
+                    {
+                        for (int bi = 0; bi < capital.buildings.Count; bi++)
                         {
-                            rolledBuilding = building;
-                            buildingRollOne = roll1;
-                            buildingRollTwo = roll2;
-                        })));
+                            Building b = capital.buildings[bi];
+                            if (b == null || b.type == BuildingType.MainBase)
+                            {
+                                continue;
+                            }
 
-                string rolledBuildingName = rolledBuilding != null ? rolledBuilding.displayName : "No Building";
-                rollHeaderText.text = "Starting Building Rolled";
-                rollHeaderText.color = new Color(1f, 0.95f, 0.55f, 1f);
-                statNameText.text = rolledBuildingName;
-                statNameText.color = new Color(1f, 0.95f, 0.55f, 1f);
-                formulaText.text = $"Rolls: {buildingRollOne}, {buildingRollTwo}";
-                formulaText.color = new Color(1f, 0.95f, 0.55f, 1f);
+                            if (namesBuilder.Length > 0)
+                            {
+                                namesBuilder.Append(", ");
+                            }
+
+                            namesBuilder.Append(b.displayName);
+                        }
+                    }
+
+                    rollHeaderText.text = "Starting Buildings (Dev)";
+                    rollHeaderText.color = new Color(1f, 0.95f, 0.55f, 1f);
+                    statNameText.text = namesBuilder.Length > 0 ? namesBuilder.ToString() : "Main Base only";
+                    statNameText.color = new Color(1f, 0.95f, 0.55f, 1f);
+                    formulaText.text = "Preset in inspector — dice roll skipped";
+                    formulaText.color = new Color(1f, 0.95f, 0.55f, 1f);
+                }
+                else
+                {
+                    Building rolledBuilding = null;
+                    int buildingRollOne = 0;
+                    int buildingRollTwo = 0;
+                    yield return StartCoroutine(BuildCityRollSceneScope.Run(this,
+                        (rollCanvas, rollCamera) => CityIconUI.PlayStartupBuildingRoll(
+                            capital,
+                            rollCanvas,
+                            rollCamera,
+                            (building, roll1, roll2) =>
+                            {
+                                rolledBuilding = building;
+                                buildingRollOne = roll1;
+                                buildingRollTwo = roll2;
+                            })));
+
+                    string rolledBuildingName = rolledBuilding != null ? rolledBuilding.displayName : "No Building";
+                    rollHeaderText.text = "Starting Building Rolled";
+                    rollHeaderText.color = new Color(1f, 0.95f, 0.55f, 1f);
+                    statNameText.text = rolledBuildingName;
+                    statNameText.color = new Color(1f, 0.95f, 0.55f, 1f);
+                    formulaText.text = $"Rolls: {buildingRollOne}, {buildingRollTwo}";
+                    formulaText.color = new Color(1f, 0.95f, 0.55f, 1f);
+                }
 
                 bool isLastPlayer = playerIndex == gameManager.players.Count - 1;
                 string endStepLabel = isLastPlayer ? "Start Game" : "Next Player";

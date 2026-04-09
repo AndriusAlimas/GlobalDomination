@@ -1,0 +1,17 @@
+# Global Domination (Unity 6)
+
+**Authoritative agent rules:** `.cursor/rules/*.mdc`. Read **engineering-standards** first (change hygiene, cohesion/coupling, helpers); then **project-context** and file-type rules as needed.
+
+## Quick facts
+
+- Design and layout map: `README.md` (Unity **6000.0.x** — `ProjectSettings/ProjectVersion.txt`).
+- **Core** (`GlobalDomination.Core` asmdef) = `Assets/Scripts/Core/**`. **UI** + **Bootstrap** = **Assembly-CSharp**. No new Core↔UI assembly cycles.
+- Namespaces: `GlobalDomination.GameData`, `.Managers`, `.UI`; large behaviours use **partial** class files by feature.
+
+## Expectations for edits
+
+- **Delete** obsolete code when replacing behavior; no dead paths, no large commented-out dumps.
+- **Reuse or add helpers** (`Core/Helpers/`, small focused types) instead of duplicating logic across `MonoBehaviour`s.
+- **Tight cohesion, loose coupling** — especially keep models free of UI dependencies.
+
+Prefer adding focused `.mdc` files under `.cursor/rules/` instead of bloating this file.

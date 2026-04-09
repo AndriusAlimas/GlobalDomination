@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using TMPro;
 using GlobalDomination.GameData;
+using GlobalDomination.Managers;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
@@ -988,8 +989,15 @@ namespace GlobalDomination.UI
             return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 96f);
         }
 
+        private static Sprite s_cachedPopulationPlateSprite;
+
         private static Sprite CreatePopulationPlateSprite()
         {
+            if (s_cachedPopulationPlateSprite != null)
+            {
+                return s_cachedPopulationPlateSprite;
+            }
+
             const int width = 64;
             const int height = 32;
             Texture2D texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
@@ -1029,7 +1037,25 @@ namespace GlobalDomination.UI
             }
 
             texture.Apply();
-            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 64f);
+            s_cachedPopulationPlateSprite = Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 64f);
+            return s_cachedPopulationPlateSprite;
+        }
+
+        /// <summary>Oval plate sprite (shared) for HUD badges such as division chips.</summary>
+        internal static Sprite GetSharedPopulationPlateSprite()
+        {
+            return CreatePopulationPlateSprite();
+        }
+
+        /// <summary>Rounded 9-slice sprite for centered modals (fort assign, division detail, menus).</summary>
+        internal static Sprite GetSharedActionCardSprite()
+        {
+            if (actionCardSprite == null)
+            {
+                actionCardSprite = CreateRoundedCardSprite();
+            }
+
+            return actionCardSprite;
         }
 
         private static void DrawIsoBuilding(Texture2D texture, int x, int y, int w, int h, Color left, Color right, Color window)
@@ -1252,10 +1278,28 @@ namespace GlobalDomination.UI
 
             CreateMenuTitle(panelObj.transform, linkedCity.cityName + " Commands");
 
-            bool canBuildNewCity = linkedCity.HasMainBase();
-            string buildCityLabel = canBuildNewCity
-                ? "1. Build new city"
-                : "1. Build new city (need Main Base)";
+            bool hasMainBase = linkedCity.HasMainBase();
+            Player menuOwner = GameManager.Instance != null ? ResolveOwningPlayer(GameManager.Instance) : null;
+            bool underCityCap = menuOwner != null && menuOwner.CanFoundAdditionalCity();
+            bool canBuildNewCity = hasMainBase && underCityCap;
+            string buildCityLabel;
+            if (!hasMainBase)
+            {
+                buildCityLabel = "1. Build new city (need Main Base)";
+            }
+            else if (menuOwner == null)
+            {
+                buildCityLabel = "1. Build new city";
+            }
+            else if (!underCityCap)
+            {
+                buildCityLabel = $"1. Build new city ({Player.MaxOwnedCities} cities max)";
+            }
+            else
+            {
+                buildCityLabel = "1. Build new city";
+            }
+
             CreateMenuButton(panelObj.transform, new Vector2(0f, 104f), buildCityLabel, () => OnActionClicked("Build new city"), canBuildNewCity);
             CreateMenuButton(panelObj.transform, new Vector2(0f, 56f), "2. Upgrading", () => OnActionClicked("Upgrading"));
             CreateMenuButton(panelObj.transform, new Vector2(0f, 8f), "3. Building Power", () => OnActionClicked("Building Power"));

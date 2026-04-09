@@ -1,0 +1,11 @@
+---
+description: Editor-only C# — asmdefs, UNITY_EDITOR, and menu scripts
+globs: Assets/Scripts/**/Editor/**/*.cs
+alwaysApply: false
+---
+
+# Editor scripts
+
+- **`GlobalDomination.Editor.asmdef`**: Editor platform only; references **Assembly-CSharp**. New editor types that must inspect runtime types belong here or in another Editor asmdef that references the right assemblies.
+- Guard runtime usage of editor APIs with `#if UNITY_EDITOR` when sharing helpers; **do not** ship editor-only code outside `#if UNITY_EDITOR` in runtime assemblies if it pulls in `UnityEditor`.
+- Prefer **CustomEditor** / **PropertyDrawer** next to the runtime type under `.../Editor/` or `Scripts/Editor/` consistent with existing `UITestManagerEditor.cs`, `DiceMaterialUpgrader.cs`.

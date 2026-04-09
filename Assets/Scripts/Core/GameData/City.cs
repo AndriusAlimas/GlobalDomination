@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using GlobalDomination;
 using GlobalDomination.Managers;
+using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace GlobalDomination.GameData
 {
@@ -23,8 +25,12 @@ namespace GlobalDomination.GameData
         public List<Building> buildings;
         public int constructionProgress;
         
-        // Units (fort) — see UnitCatalog / UnitDefinition for stats when persisting real units.
-        public List<string> unitsInFort;
+        /// <summary>Fort roster; one entry per purchased unit. Division 0 = unassigned.</summary>
+        public List<FortUnitEntry> fortUnits;
+
+        /// <summary>Deprecated: pre-structured fort list as UI labels. Migrated into <see cref="fortUnits"/> when opening the fort.</summary>
+        [SerializeField, FormerlySerializedAs("unitsInFort")]
+        private List<string> legacyFortUnitLabels;
         
         // Owner
         public int ownerId;  // Player ID who owns this city
@@ -36,7 +42,7 @@ namespace GlobalDomination.GameData
             this.ownerId = ownerId;
             
             buildings = new List<Building>();
-            unitsInFort = new List<string>();
+            fortUnits = new List<FortUnitEntry>();
             startingHealthRolls = new List<int>();
             startingMoneyRolls = new List<int>();
             startingPowerRolls = new List<int>();
@@ -128,6 +134,64 @@ namespace GlobalDomination.GameData
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Copies legacy string rows (building label + level) into <see cref="fortUnits"/> once.
+        /// </summary>
+        public void MigrateLegacyFortUnitLabelsIfNeeded()
+        {
+            if (fortUnits == null)
+            {
+                fortUnits = new List<FortUnitEntry>();
+            }
+
+            if (legacyFortUnitLabels == null || legacyFortUnitLabels.Count == 0)
+            {
+                return;
+            }
+
+            for (int i = 0; i < legacyFortUnitLabels.Count; i++)
+            {
+                string line = legacyFortUnitLabels[i];
+                if (string.IsNullOrEmpty(line))
+                {
+                    continue;
+                }
+
+                FortUnitEntry matched = TryMatchLegacyFortLabel(line);
+                if (matched != null)
+                {
+                    fortUnits.Add(matched);
+                }
+            }
+
+            legacyFortUnitLabels.Clear();
+        }
+
+        private FortUnitEntry TryMatchLegacyFortLabel(string line)
+        {
+            if (buildings == null)
+            {
+                return null;
+            }
+
+            for (int i = 0; i < buildings.Count; i++)
+            {
+                Building b = buildings[i];
+                if (b == null)
+                {
+                    continue;
+                }
+
+                if ($"{b.displayName} (Lv.{b.level})" == line ||
+                    $"{b.displayName} (Level {b.level})" == line)
+                {
+                    return new FortUnitEntry(b.type, b.level, 0);
+                }
+            }
+
+            return null;
         }
 
         public override string ToString()

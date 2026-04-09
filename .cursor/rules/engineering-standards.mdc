@@ -1,0 +1,27 @@
+---
+description: Change discipline, cohesion/coupling, helpers — applies to every task
+alwaysApply: true
+---
+
+# Engineering standards
+
+## Change hygiene (leave code cleaner, not noisier)
+
+- **Minimal, complete edits:** Implement what was asked; avoid drive-by refactors in untouched areas.
+- **Remove what you replace:** Delete obsolete methods, fields, branches, and duplicate code paths when behavior moves elsewhere. Do not leave dead code, long commented-out blocks, or two competing implementations “just in case.”
+- **One clear path:** Prefer a single maintained flow over parallel legacy/new logic; if migrating, finish the migration in scope or document the intentional leftover in a short `// TODO` with owner/reason (sparingly).
+
+## Cohesion and coupling
+
+- **High cohesion:** Each type or file should have one obvious responsibility. If a `MonoBehaviour` accumulates unrelated concerns, **extract** (partial file by *feature*, or a dedicated helper/coordinator class).
+- **Loose coupling:** Prefer **data and clear seams**: pass values/DTOs, use events or small interfaces, call through existing managers (`GameManager`, etc.) instead of tight references from UI widgets deep into unrelated UI.
+- **Assembly boundaries:** Keep **`GlobalDomination.GameData`** free of UI and scene types. Do not introduce **Core ↔ UI** assembly cycles (see `README.md`).
+
+## Helpers and reuse
+
+- **Before duplicating logic:** Search under `Core/Helpers/`, shared UI utilities (e.g. HUD helpers), and nearby existing patterns.
+- **When to extract:** If logic is **non-trivial**, **repeated**, or **easier to test** in isolation, add a small static helper or focused class in the appropriate folder (`Core/Helpers/` for domain/math; UI-local helper for presentation-only), with a name that states intent.
+
+## Documentation touchpoints
+
+- Substantial new folders or entry points: extend **`README.md`** “Project layout” so future work stays oriented.
