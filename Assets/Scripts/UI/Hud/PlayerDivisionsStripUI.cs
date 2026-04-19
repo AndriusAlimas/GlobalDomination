@@ -12,7 +12,7 @@ namespace GlobalDomination.UI.Hud
     /// <summary>
     /// Fort division chips (number + unit count) on the screen’s right edge. Tap for roster and redeploy.
     /// </summary>
-    public sealed class PlayerDivisionsStripUI
+    public sealed partial class PlayerDivisionsStripUI
     {
         private const float DivisionDetailModalWidth = 420f;
 
@@ -583,25 +583,6 @@ namespace GlobalDomination.UI.Hud
                 titleTmp.font = TMP_Settings.defaultFontAsset;
             }
 
-            GameObject statsRow = new GameObject("SelectionStats", typeof(RectTransform));
-            statsRow.transform.SetParent(sheet.transform, false);
-            statsRow.SetActive(false);
-            LayoutElement statsRowLe = statsRow.AddComponent<LayoutElement>();
-            statsRowLe.minHeight = 4f;
-            ContentSizeFitter statsRowCsf = statsRow.AddComponent<ContentSizeFitter>();
-            statsRowCsf.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-            statsRowCsf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            TextMeshProUGUI statsReadout = statsRow.AddComponent<TextMeshProUGUI>();
-            statsReadout.text = string.Empty;
-            statsReadout.fontSize = 13.5f;
-            statsReadout.alignment = TextAlignmentOptions.Left;
-            statsReadout.color = new Color(0.88f, 0.91f, 0.96f, 1f);
-            statsReadout.richText = true;
-            if (TMP_Settings.defaultFontAsset != null)
-            {
-                statsReadout.font = TMP_Settings.defaultFontAsset;
-            }
-
             GameObject scrollRoot = new GameObject("Scroll", typeof(RectTransform));
             scrollRoot.transform.SetParent(sheet.transform, false);
             LayoutElement scrollAreaLe = scrollRoot.AddComponent<LayoutElement>();
@@ -658,6 +639,25 @@ namespace GlobalDomination.UI.Hud
             csf.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
             csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             scroll.content = contentRt;
+
+            GameObject statsRow = new GameObject("SelectionStats", typeof(RectTransform));
+            statsRow.transform.SetParent(sheet.transform, false);
+            statsRow.SetActive(false);
+            LayoutElement statsRowLe = statsRow.AddComponent<LayoutElement>();
+            statsRowLe.minHeight = 4f;
+            ContentSizeFitter statsRowCsf = statsRow.AddComponent<ContentSizeFitter>();
+            statsRowCsf.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            statsRowCsf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            TextMeshProUGUI statsReadout = statsRow.AddComponent<TextMeshProUGUI>();
+            statsReadout.text = string.Empty;
+            statsReadout.fontSize = 13.5f;
+            statsReadout.alignment = TextAlignmentOptions.Center;
+            statsReadout.color = new Color(0.88f, 0.91f, 0.96f, 1f);
+            statsReadout.richText = true;
+            if (TMP_Settings.defaultFontAsset != null)
+            {
+                statsReadout.font = TMP_Settings.defaultFontAsset;
+            }
 
             List<FortUnitEntry> divUnits = new List<FortUnitEntry>();
             List<FortUnitEntry> roster = dr.City.fortUnits;
@@ -736,6 +736,44 @@ namespace GlobalDomination.UI.Hud
                 }
             }
 
+            GameObject attackBtnObj = new GameObject("AttackPosition", typeof(RectTransform));
+            attackBtnObj.transform.SetParent(sheet.transform, false);
+            LayoutElement attackBtnLe = attackBtnObj.AddComponent<LayoutElement>();
+            attackBtnLe.minHeight = 42f;
+            attackBtnLe.preferredHeight = 42f;
+            Image attackBg = attackBtnObj.AddComponent<Image>();
+            attackBg.color = new Color(0.62f, 0.22f, 0.18f, 0.96f);
+            Button attackBtn = attackBtnObj.AddComponent<Button>();
+            attackBtn.targetGraphic = attackBg;
+            ColorBlock atkCb = attackBtn.colors;
+            atkCb.highlightedColor = new Color(0.75f, 0.3f, 0.24f, 1f);
+            atkCb.pressedColor = new Color(0.5f, 0.16f, 0.12f, 1f);
+            atkCb.disabledColor = new Color(0.28f, 0.28f, 0.3f, 0.65f);
+            attackBtn.colors = atkCb;
+            attackBtn.interactable = divUnits.Count > 0;
+            GameObject attackLbl = new GameObject("Label", typeof(RectTransform));
+            attackLbl.transform.SetParent(attackBtnObj.transform, false);
+            RectTransform alr = UiRect(attackLbl);
+            alr.anchorMin = Vector2.zero;
+            alr.anchorMax = Vector2.one;
+            alr.offsetMin = Vector2.zero;
+            alr.offsetMax = Vector2.zero;
+            TextMeshProUGUI aTmp = attackLbl.AddComponent<TextMeshProUGUI>();
+            aTmp.text = divUnits.Count > 0 ? "Attack position" : "Attack position (no units)";
+            aTmp.fontSize = 16f;
+            aTmp.fontStyle = FontStyles.Bold;
+            aTmp.alignment = TextAlignmentOptions.Center;
+            aTmp.color = Color.white;
+            if (TMP_Settings.defaultFontAsset != null)
+            {
+                aTmp.font = TMP_Settings.defaultFontAsset;
+            }
+
+            DivisionRef attackDr = dr;
+            Canvas attackCanvas = canvas;
+            List<FortUnitEntry> attackUnitsSnapshot = new List<FortUnitEntry>(divUnits);
+            attackBtn.onClick.AddListener(() => BeginAttackPositionFlow(attackCanvas, attackDr, attackUnitsSnapshot));
+
             GameObject closeBtnObj = new GameObject("Close", typeof(RectTransform));
             closeBtnObj.transform.SetParent(sheet.transform, false);
             LayoutElement closeBtnLe = closeBtnObj.AddComponent<LayoutElement>();
@@ -797,7 +835,7 @@ namespace GlobalDomination.UI.Hud
             return
                 $"<b>{def.UnitName}</b>  <size=12><color=#9fb3c8>Lv.{entry.buildingLevel}</color></size>\n" +
                 $"<color=#9ec5e8>{hpName}</color>  <b>{cur}</b> / <b>{max}</b>\n" +
-                $"<color=#9ec5e8>{powerSym} power</color> <b>{def.CategoryPower}</b>  " +
+                $"<color=#9ec5e8>{powerSym}</color> <b>{def.CategoryPower}</b>  " +
                 $"<color=#5a6a78>·</color>  <color=#9ec5e8>Str</color> <b>{def.IconStrength}</b>" +
                 auxPart;
         }
