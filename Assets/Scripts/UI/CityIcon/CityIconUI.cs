@@ -108,6 +108,36 @@ namespace GlobalDomination.UI
         }
 
         /// <summary>
+        /// TMP must have a font before layout/material work runs; otherwise material creation can throw (null source).
+        /// </summary>
+        private static void EnsureTmpFontAssigned(TMP_Text text)
+        {
+            TmpFontResolve.AssignIfNeeded(text);
+        }
+
+        /// <summary>
+        /// TMP outline touches materials that may not exist until geometry is built; set after rects and guard post-HUD-restore frames.
+        /// </summary>
+        private static void ApplyCityHudLabelOutline(TextMeshProUGUI text, float width, Color color)
+        {
+            if (text == null || text.font == null)
+            {
+                return;
+            }
+
+            try
+            {
+                text.ForceMeshUpdate(true);
+                text.outlineWidth = width;
+                text.outlineColor = color;
+            }
+            catch (System.Exception)
+            {
+                // Skip cosmetic outline if TMP internals are not ready (e.g. immediately after battle camera/HUD teardown).
+            }
+        }
+
+        /// <summary>
         /// Creates a city icon UI programmatically. Layout is a fixed size; population tier only affects which building sprite is shown.
         /// </summary>
         public static CityIconUI CreateCityIcon(Transform parent, Vector2 position, City city)
@@ -217,14 +247,13 @@ namespace GlobalDomination.UI
             GameObject popTextObj = new GameObject("PopulationText");
             popTextObj.transform.SetParent(container.transform, false);
             TextMeshProUGUI popText = popTextObj.AddComponent<TextMeshProUGUI>();
+            EnsureTmpFontAssigned(popText);
             popText.text = city.healthPoints.ToString();
             popText.fontSize = 27f;
             popText.fontStyle = FontStyles.Bold;
             popText.alignment = TextAlignmentOptions.Center;
             popText.color = new Color(0.08f, 0.1f, 0.16f, 1f);
-            popText.outlineWidth = 0.3f;
-            popText.outlineColor = new Color(1f, 1f, 1f, 0.65f);
-            
+
             RectTransform popTextRect = popTextObj.GetComponent<RectTransform>();
             popTextRect.anchorMin = new Vector2(0.5f, 0.5f);
             popTextRect.anchorMax = new Vector2(0.5f, 0.5f);
@@ -263,13 +292,12 @@ namespace GlobalDomination.UI
             GameObject moneyTextObj = new GameObject("MoneyText");
             moneyTextObj.transform.SetParent(container.transform, false);
             TextMeshProUGUI moneyText = moneyTextObj.AddComponent<TextMeshProUGUI>();
+            EnsureTmpFontAssigned(moneyText);
             moneyText.text = city.money.ToString();
             moneyText.fontSize = 19f;
             moneyText.fontStyle = FontStyles.Bold;
             moneyText.alignment = TextAlignmentOptions.Center;
             moneyText.color = new Color(0.02f, 0.35f, 0.08f, 1f);
-            moneyText.outlineWidth = 0.25f;
-            moneyText.outlineColor = new Color(1f, 1f, 1f, 0.65f);
 
             RectTransform moneyTextRect = moneyTextObj.GetComponent<RectTransform>();
             moneyTextRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -300,13 +328,12 @@ namespace GlobalDomination.UI
             GameObject powerTextObj = new GameObject("PowerText");
             powerTextObj.transform.SetParent(container.transform, false);
             TextMeshProUGUI powerText = powerTextObj.AddComponent<TextMeshProUGUI>();
+            EnsureTmpFontAssigned(powerText);
             powerText.text = city.cityPower.ToString();
             powerText.fontSize = 19f;
             powerText.fontStyle = FontStyles.Bold;
             powerText.alignment = TextAlignmentOptions.Center;
             powerText.color = new Color(0.6f, 0.02f, 0.0f, 1f);
-            powerText.outlineWidth = 0.25f;
-            powerText.outlineColor = new Color(1f, 1f, 1f, 0.65f);
 
             RectTransform powerTextRect = powerTextObj.GetComponent<RectTransform>();
             powerTextRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -393,15 +420,14 @@ namespace GlobalDomination.UI
             GameObject nameTextObj = new GameObject("CityNameText");
             nameTextObj.transform.SetParent(container.transform, false);
             TextMeshProUGUI nameText = nameTextObj.AddComponent<TextMeshProUGUI>();
+            EnsureTmpFontAssigned(nameText);
             nameText.text = city.cityName;
             nameText.fontSize = 27f;
             nameText.fontStyle = FontStyles.Bold;
             nameText.fontWeight = FontWeight.Black;
             nameText.alignment = TextAlignmentOptions.Center;
             nameText.color = new Color(0.06f, 0.07f, 0.1f, 1f);
-            nameText.outlineWidth = 0.3f;
-            nameText.outlineColor = new Color(1f, 1f, 1f, 0.65f);
-            
+
             RectTransform nameTextRect = nameTextObj.GetComponent<RectTransform>();
             nameTextRect.anchorMin = new Vector2(0.5f, 0f);
             nameTextRect.anchorMax = new Vector2(0.5f, 0f);
@@ -456,7 +482,19 @@ namespace GlobalDomination.UI
             CanvasGroup cityCanvas = container.AddComponent<CanvasGroup>();
             cityCanvas.alpha = city.hasTakenTurn ? 0.34f : 1f;
             cityIconUI.cityCanvasGroup = cityCanvas;
-            
+
+            TMP_Text[] allTmp = container.GetComponentsInChildren<TMP_Text>(true);
+            for (int ti = 0; ti < allTmp.Length; ti++)
+            {
+                EnsureTmpFontAssigned(allTmp[ti]);
+            }
+
+            Color outlineDim = new Color(1f, 1f, 1f, 0.65f);
+            ApplyCityHudLabelOutline(popText, 0.3f, outlineDim);
+            ApplyCityHudLabelOutline(moneyText, 0.25f, outlineDim);
+            ApplyCityHudLabelOutline(powerText, 0.25f, outlineDim);
+            ApplyCityHudLabelOutline(nameText, 0.3f, outlineDim);
+
             return cityIconUI;
         }
 
@@ -1326,6 +1364,7 @@ namespace GlobalDomination.UI
             titleRect.sizeDelta = new Vector2(330f, 42f);
 
             TextMeshProUGUI titleText = titleObj.AddComponent<TextMeshProUGUI>();
+            EnsureTmpFontAssigned(titleText);
             titleText.text = title;
             titleText.fontSize = 26f;
             titleText.fontStyle = FontStyles.Bold;
@@ -1368,6 +1407,7 @@ namespace GlobalDomination.UI
             textRect.offsetMax = Vector2.zero;
 
             TextMeshProUGUI text = textObj.AddComponent<TextMeshProUGUI>();
+            EnsureTmpFontAssigned(text);
             text.text = label;
             text.fontSize = 18f;
             text.fontStyle = FontStyles.Bold;
@@ -1948,7 +1988,7 @@ namespace GlobalDomination.UI
                 }
 
                 Material source = renderer.sharedMaterial;
-                if (!source.name.Contains("Numbers"))
+                if (source.shader == null || string.IsNullOrEmpty(source.name) || !source.name.Contains("Numbers"))
                 {
                     continue;
                 }

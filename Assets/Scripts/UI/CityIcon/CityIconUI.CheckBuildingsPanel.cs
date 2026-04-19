@@ -490,10 +490,7 @@ namespace GlobalDomination.UI
             coTmp.textWrappingMode = TextWrappingModes.NoWrap;
             coTmp.overflowMode = TextOverflowModes.Overflow;
             coTmp.raycastTarget = false;
-            if (TMP_Settings.defaultFontAsset != null)
-            {
-                coTmp.font = TMP_Settings.defaultFontAsset;
-            }
+            TmpFontResolve.AssignIfNeeded(coTmp);
         }
 
         private static void FinishFortDivisionAssignAndRefreshHud()
@@ -631,10 +628,7 @@ namespace GlobalDomination.UI
             headerTmp.alignment = TextAlignmentOptions.Center;
             headerTmp.color = new Color(1f, 0.94f, 0.62f, 1f);
             headerTmp.richText = true;
-            if (TMP_Settings.defaultFontAsset != null)
-            {
-                headerTmp.font = TMP_Settings.defaultFontAsset;
-            }
+            TmpFontResolve.AssignIfNeeded(headerTmp);
 
             bool atDivisionCap = existingDivs.Count >= MaxFortDivisionsPerCity;
             if (!atDivisionCap)
@@ -663,10 +657,7 @@ namespace GlobalDomination.UI
                 joinLabelTmp.fontStyle = FontStyles.Bold;
                 joinLabelTmp.alignment = TextAlignmentOptions.Center;
                 joinLabelTmp.color = new Color(0.72f, 0.8f, 0.9f, 1f);
-                if (TMP_Settings.defaultFontAsset != null)
-                {
-                    joinLabelTmp.font = TMP_Settings.defaultFontAsset;
-                }
+                TmpFontResolve.AssignIfNeeded(joinLabelTmp);
 
                 Transform joinButtonParent = card.transform;
                 const int joinScrollThreshold = 5;
@@ -750,10 +741,7 @@ namespace GlobalDomination.UI
                 capTmp.fontSize = 13f;
                 capTmp.alignment = TextAlignmentOptions.Center;
                 capTmp.color = new Color(0.9f, 0.65f, 0.55f, 1f);
-                if (TMP_Settings.defaultFontAsset != null)
-                {
-                    capTmp.font = TMP_Settings.defaultFontAsset;
-                }
+                TmpFontResolve.AssignIfNeeded(capTmp);
             }
 
             AddFortDialogButton(card.transform, "Cancel", new Color(0.32f, 0.36f, 0.42f, 0.94f), DestroyActiveFortDivisionDialog);
@@ -788,6 +776,7 @@ namespace GlobalDomination.UI
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = Color.white;
             tmp.raycastTarget = false;
+            TmpFontResolve.AssignIfNeeded(tmp);
             btn.onClick.AddListener(onClick);
         }
 

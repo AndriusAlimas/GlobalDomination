@@ -369,6 +369,7 @@ namespace GlobalDomination.UI.Hud
             divNumRt.offsetMin = new Vector2(2f, 2f);
             divNumRt.offsetMax = new Vector2(-2f, -2f);
             TextMeshProUGUI divTmp = divNumObj.AddComponent<TextMeshProUGUI>();
+            TmpFontResolve.AssignIfNeeded(divTmp);
             divTmp.text = dr.DivisionNumber.ToString();
             divTmp.fontSize = Mathf.Max(fontSize + 12f, 28f);
             divTmp.fontStyle = FontStyles.Bold;
@@ -377,10 +378,6 @@ namespace GlobalDomination.UI.Hud
             divTmp.textWrappingMode = TextWrappingModes.NoWrap;
             divTmp.overflowMode = TextOverflowModes.Overflow;
             divTmp.raycastTarget = false;
-            if (TMP_Settings.defaultFontAsset != null)
-            {
-                divTmp.font = TMP_Settings.defaultFontAsset;
-            }
 
             GameObject badgeRoot = new GameObject("UnitCountBadge", typeof(RectTransform));
             badgeRoot.transform.SetParent(chip.transform, false);
@@ -414,6 +411,7 @@ namespace GlobalDomination.UI.Hud
             countRt.offsetMin = Vector2.zero;
             countRt.offsetMax = Vector2.zero;
             TextMeshProUGUI countTmp = countObj.AddComponent<TextMeshProUGUI>();
+            TmpFontResolve.AssignIfNeeded(countTmp);
             countTmp.text = dr.UnitCount > 0 ? dr.UnitCount.ToString() : "0";
             countTmp.fontSize = 15f;
             countTmp.fontStyle = FontStyles.Bold;
@@ -422,10 +420,6 @@ namespace GlobalDomination.UI.Hud
             countTmp.textWrappingMode = TextWrappingModes.NoWrap;
             countTmp.overflowMode = TextOverflowModes.Overflow;
             countTmp.raycastTarget = false;
-            if (TMP_Settings.defaultFontAsset != null)
-            {
-                countTmp.font = TMP_Settings.defaultFontAsset;
-            }
 
             DivisionRef captured = dr;
             btn.onClick.AddListener(() => ShowDivisionDetailDialog(canvas, captured));
@@ -573,15 +567,12 @@ namespace GlobalDomination.UI.Hud
             titleColLe.flexibleWidth = 1f;
             titleColLe.minWidth = 120f;
             TextMeshProUGUI titleTmp = titleCol.AddComponent<TextMeshProUGUI>();
+            TmpFontResolve.AssignIfNeeded(titleTmp);
             titleTmp.text = $"<size=22><b>Division {dr.DivisionNumber}</b></size>";
             titleTmp.fontSize = 16f;
             titleTmp.alignment = TextAlignmentOptions.Left;
             titleTmp.color = new Color(1f, 0.94f, 0.62f, 1f);
             titleTmp.richText = true;
-            if (TMP_Settings.defaultFontAsset != null)
-            {
-                titleTmp.font = TMP_Settings.defaultFontAsset;
-            }
 
             GameObject scrollRoot = new GameObject("Scroll", typeof(RectTransform));
             scrollRoot.transform.SetParent(sheet.transform, false);
@@ -649,15 +640,12 @@ namespace GlobalDomination.UI.Hud
             statsRowCsf.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
             statsRowCsf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             TextMeshProUGUI statsReadout = statsRow.AddComponent<TextMeshProUGUI>();
+            TmpFontResolve.AssignIfNeeded(statsReadout);
             statsReadout.text = string.Empty;
             statsReadout.fontSize = 13.5f;
             statsReadout.alignment = TextAlignmentOptions.Center;
             statsReadout.color = new Color(0.88f, 0.91f, 0.96f, 1f);
             statsReadout.richText = true;
-            if (TMP_Settings.defaultFontAsset != null)
-            {
-                statsReadout.font = TMP_Settings.defaultFontAsset;
-            }
 
             List<FortUnitEntry> divUnits = new List<FortUnitEntry>();
             List<FortUnitEntry> roster = dr.City.fortUnits;
@@ -681,14 +669,11 @@ namespace GlobalDomination.UI.Hud
                 emptyLe.minHeight = 40f;
                 emptyLe.minWidth = modalWidth - 56f;
                 TextMeshProUGUI emptyTmp = empty.AddComponent<TextMeshProUGUI>();
+                TmpFontResolve.AssignIfNeeded(emptyTmp);
                 emptyTmp.text = "(No units in this division)";
                 emptyTmp.fontSize = 14f;
                 emptyTmp.alignment = TextAlignmentOptions.Center;
                 emptyTmp.color = new Color(0.7f, 0.72f, 0.76f, 1f);
-                if (TMP_Settings.defaultFontAsset != null)
-                {
-                    emptyTmp.font = TMP_Settings.defaultFontAsset;
-                }
             }
             else
             {
@@ -759,15 +744,12 @@ namespace GlobalDomination.UI.Hud
             alr.offsetMin = Vector2.zero;
             alr.offsetMax = Vector2.zero;
             TextMeshProUGUI aTmp = attackLbl.AddComponent<TextMeshProUGUI>();
+            TmpFontResolve.AssignIfNeeded(aTmp);
             aTmp.text = divUnits.Count > 0 ? "Attack position" : "Attack position (no units)";
             aTmp.fontSize = 16f;
             aTmp.fontStyle = FontStyles.Bold;
             aTmp.alignment = TextAlignmentOptions.Center;
             aTmp.color = Color.white;
-            if (TMP_Settings.defaultFontAsset != null)
-            {
-                aTmp.font = TMP_Settings.defaultFontAsset;
-            }
 
             DivisionRef attackDr = dr;
             Canvas attackCanvas = canvas;
@@ -791,15 +773,12 @@ namespace GlobalDomination.UI.Hud
             clr.offsetMin = Vector2.zero;
             clr.offsetMax = Vector2.zero;
             TextMeshProUGUI cTmp = closeLbl.AddComponent<TextMeshProUGUI>();
+            TmpFontResolve.AssignIfNeeded(cTmp);
             cTmp.text = "Close";
             cTmp.fontSize = 18f;
             cTmp.fontStyle = FontStyles.Bold;
             cTmp.alignment = TextAlignmentOptions.Center;
             cTmp.color = Color.white;
-            if (TMP_Settings.defaultFontAsset != null)
-            {
-                cTmp.font = TMP_Settings.defaultFontAsset;
-            }
 
             closeBtn.onClick.AddListener(DestroyActiveDetailDialog);
         }

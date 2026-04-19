@@ -153,7 +153,7 @@ namespace GlobalDomination.UI.Hud
             title.color = new Color(1f, 0.94f, 0.62f, 1f);
             title.richText = true;
 
-            string sub = $"{payload.SourceCity.cityName}  ·  Division {payload.DivisionNumber}";
+            string sub = $"Division {payload.DivisionNumber}";
             TextMeshProUGUI subTmp = CreateAttackTmp(sheet.transform, sub, 13f, TextAlignmentOptions.Center);
             subTmp.color = new Color(0.72f, 0.78f, 0.86f, 1f);
 
@@ -266,7 +266,7 @@ namespace GlobalDomination.UI.Hud
             title.color = new Color(1f, 0.94f, 0.62f, 1f);
             title.richText = true;
 
-            string sub = $"vs <b>{payload.TargetPlayer.playerName}</b>  ·  {payload.SourceCity.cityName}, Division {payload.DivisionNumber}";
+            string sub = $"vs <b>{payload.TargetPlayer.playerName}</b>  ·  Division {payload.DivisionNumber}";
             TextMeshProUGUI subTmp = CreateAttackTmp(sheet.transform, sub, 12.5f, TextAlignmentOptions.Center);
             subTmp.color = new Color(0.75f, 0.8f, 0.88f, 1f);
             subTmp.richText = true;
@@ -675,15 +675,12 @@ namespace GlobalDomination.UI.Hud
             csf.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
             csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             TextMeshProUGUI tmp = go.AddComponent<TextMeshProUGUI>();
+            TmpFontResolve.AssignIfNeeded(tmp);
             tmp.text = text;
             tmp.fontSize = fontSize;
             tmp.alignment = align;
-            tmp.enableWordWrapping = true;
+            tmp.textWrappingMode = TextWrappingModes.Normal;
             tmp.richText = true;
-            if (TMP_Settings.defaultFontAsset != null)
-            {
-                tmp.font = TMP_Settings.defaultFontAsset;
-            }
 
             return tmp;
         }
@@ -710,16 +707,13 @@ namespace GlobalDomination.UI.Hud
             lr.offsetMin = Vector2.zero;
             lr.offsetMax = Vector2.zero;
             TextMeshProUGUI tmp = lbl.AddComponent<TextMeshProUGUI>();
+            TmpFontResolve.AssignIfNeeded(tmp);
             tmp.text = label;
             tmp.fontSize = 15f;
             tmp.fontStyle = FontStyles.Bold;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = Color.white;
-            tmp.enableWordWrapping = true;
-            if (TMP_Settings.defaultFontAsset != null)
-            {
-                tmp.font = TMP_Settings.defaultFontAsset;
-            }
+            tmp.textWrappingMode = TextWrappingModes.Normal;
 
             return row;
         }
@@ -798,15 +792,12 @@ namespace GlobalDomination.UI.Hud
             capLe.minHeight = 16f;
             capLe.preferredHeight = 16f;
             TextMeshProUGUI capTmp = cap.AddComponent<TextMeshProUGUI>();
+            TmpFontResolve.AssignIfNeeded(capTmp);
             capTmp.text = shortName;
             capTmp.fontSize = 10f;
             capTmp.alignment = TextAlignmentOptions.Center;
             capTmp.color = new Color(0.82f, 0.86f, 0.9f, 1f);
-            capTmp.enableWordWrapping = true;
-            if (TMP_Settings.defaultFontAsset != null)
-            {
-                capTmp.font = TMP_Settings.defaultFontAsset;
-            }
+            capTmp.textWrappingMode = TextWrappingModes.Normal;
 
             btn.onClick.AddListener(() => onSelected(plateRing));
             return tile;

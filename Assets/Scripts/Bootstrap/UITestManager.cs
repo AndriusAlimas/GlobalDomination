@@ -183,7 +183,7 @@ namespace GlobalDomination.Managers
 
             if (canvas == null)
             {
-                canvas = FindFirstObjectByType<Canvas>();
+                canvas = FindFirstObjectByType<Canvas>(FindObjectsInactive.Include);
             }
 
             if (canvas == null)
@@ -258,7 +258,17 @@ namespace GlobalDomination.Managers
 
             if (c == null)
             {
-                c = FindFirstObjectByType<Canvas>();
+                CitiesDisplayManager orphanHud = FindFirstObjectByType<CitiesDisplayManager>(FindObjectsInactive.Include);
+                if (orphanHud != null)
+                {
+                    citiesDisplayManager = orphanHud;
+                    c = orphanHud.GetComponentInParent<Canvas>();
+                }
+            }
+
+            if (c == null)
+            {
+                c = FindFirstObjectByType<Canvas>(FindObjectsInactive.Include);
             }
 
             return ToRootCanvas(c);
@@ -350,16 +360,12 @@ namespace GlobalDomination.Managers
             rect.sizeDelta = sizeDelta;
 
             TextMeshProUGUI textComponent = textObject.AddComponent<TextMeshProUGUI>();
+            TmpFontResolve.AssignIfNeeded(textComponent);
             textComponent.fontSize = fontSize;
             textComponent.alignment = alignment;
             textComponent.color = color;
             textComponent.raycastTarget = false;
             textComponent.richText = true;
-
-            if (TMP_Settings.defaultFontAsset != null)
-            {
-                textComponent.font = TMP_Settings.defaultFontAsset;
-            }
 
             return textComponent;
         }
@@ -1248,16 +1254,13 @@ namespace GlobalDomination.Managers
 
             TextMeshProUGUI toastLabel = toastObj.AddComponent<TextMeshProUGUI>();
             toastLabel.richText = true;
+            TmpFontResolve.AssignIfNeeded(toastLabel);
             toastLabel.text =
                 "<b>Unlucky!</b>  Building roll failed — <color=#FFAB91>no building</color> this time (empty table slot).";
             toastLabel.fontSize = 26f;
             toastLabel.alignment = TextAlignmentOptions.Center;
             toastLabel.color = new Color(1f, 0.96f, 0.9f, 1f);
             toastLabel.raycastTarget = false;
-            if (TMP_Settings.defaultFontAsset != null)
-            {
-                toastLabel.font = TMP_Settings.defaultFontAsset;
-            }
 
             yield return new WaitForSeconds(Mathf.Max(0.5f, buildingRollFailToastSeconds));
             Destroy(toastObj);
@@ -1322,18 +1325,41 @@ namespace GlobalDomination.Managers
             }
 
             Player currentPlayer = gameManager.GetCurrentPlayer();
-            currentTurnHeaderUI?.UpdatePlayer(currentPlayer, turnIteration);
 
-            // Update city icons display
+            try
+            {
+                currentTurnHeaderUI?.UpdatePlayer(currentPlayer, turnIteration);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[UpdateDisplay] Current turn header failed: {e.Message}\n{e.StackTrace}");
+            }
+
+            // Update city icons display (must run even if the header TMP path threw).
             if (citiesDisplayManager != null && currentPlayer != null && currentPlayer.ownedCities != null)
             {
-                citiesDisplayManager.DisplayCities(currentPlayer.ownedCities);
-                Canvas.ForceUpdateCanvases();
+                try
+                {
+                    citiesDisplayManager.DisplayCities(currentPlayer.ownedCities);
+                    Canvas.ForceUpdateCanvases();
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"[UpdateDisplay] DisplayCities failed: {e.Message}\n{e.StackTrace}");
+                }
             }
 
             Canvas hudCanvas = ResolveHudCanvas();
 
-            playerDivisionsStrip.Refresh(currentPlayer, hudCanvas, GetCurrentHeaderSettings());
+            try
+            {
+                playerDivisionsStrip.Refresh(currentPlayer, hudCanvas, GetCurrentHeaderSettings());
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[UpdateDisplay] Division strip refresh failed: {e.Message}\n{e.StackTrace}");
+            }
+
             RefreshEndTurnButtonState();
         }
 

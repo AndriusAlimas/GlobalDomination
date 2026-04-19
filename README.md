@@ -1,12 +1,27 @@
-# Global Domination - Game Systems Documentation
+# Global Domination
 
-## Overview
+Design and code documentation for a Unity 6 turn-based strategy prototype.
 
-Global Domination is a turn-based strategy game with a chess-style top-down view where players compete to destroy all enemy cities.
+## What this game is about
+
+**Global Domination** is a competitive strategy game about **controlling territory through cities** and **eliminating opponents**. Each player leads a real-world inspired nation (England, America, France, or Russia), starts with a **capital** whose economy and defenses are seeded by **dice**, then grows by **founding cities**, **constructing buildings** from a shared roll table, and eventually **fielding units** from a city **fort**.
+
+- **Tone:** Light war / grand strategy — no single-hero narrative; the “characters” are your cities, buildings, and divisions.
+- **Core loop (design intent):** Take turns improving your cities → recruit and organize **fort units** into **divisions** → threaten other players’ cities until you can **knock them out of the game** by taking their last city.
+- **Win condition:** Be the last player with at least one city (everyone else has lost all cities).
+- **What makes runs different:** Startup and many upgrades are **d6-driven** (population, money, defense, first building, later build rolls), so each match has different economic pressure without a separate deck-building layer.
+
+The codebase is split between a **data/rules layer** (`Core/`, assembly **GlobalDomination.Core**) and **runtime UI** (city icons, HUD, test bootstrap in `UI/` and `Bootstrap/`). See **Project layout** below for folders.
+
+For hands-on testing notes, see **`TESTING_GUIDE.md`**.
+
+## Overview (systems angle)
+
+Global Domination is implemented as a **turn-based** strategy game with a **top-down map-style HUD** (see `UITestManager` / city grid). Players compete until only one player still holds cities.
 
 ## Game Objective
 
-**Win Condition:** Destroy all enemy cities
+**Win condition:** Destroy all enemy cities (i.e. reduce every opponent to **zero cities** — same as “last standing”).
 
 ## Core Game Systems
 
@@ -77,6 +92,30 @@ Buildings are obtained through a two-dice roll system (6x6 grid):
 - Players take actions on their turn
 - Game continues until only one player has cities remaining
 
+## Player view, attack view, and dice flow
+
+These are **different presentations** with the **same goal**: leave the normal map HUD, do a focused activity, then resume on the map with the same underlying game state (`GameManager`, `Player`, `City` lists).
+
+### Player / city view (home HUD)
+
+The **map-style HUD** is the default turn screen: current player header, flags, city icon grid ([`CitiesDisplayManager`](Assets/Scripts/UI/Hud/CitiesDisplayManager.cs)), division strip, end-turn controls, etc. [`UITestManager`](Assets/Scripts/Bootstrap/UITestManager.cs) orchestrates wiring and refresh.
+
+### Dice view (temporary, lighter swap)
+
+Build-city and similar rolls use a **focused dice experience**—overlay and/or isolated roll scope ([`BuildCityRollSceneScope`](Assets/Scripts/UI/CityIcon/BuildCityRollSceneScope.cs), city icon roll partials)—then hand control back to the same HUD-driven flow. The main HUD often stays in the scene or is covered by an overlay; returning is mostly closing the overlay or exiting the roll scope.
+
+### Attack view (temporary, heavier swap)
+
+After staging is confirmed, [`UITestManager.StagingBattle.partial.cs`](Assets/Scripts/Bootstrap/UITestManager.StagingBattle.partial.cs) **deactivates the HUD canvas**, spawns a **`StagingBattleSession`** with [`StagingBattleWorld`](Assets/Scripts/UI/Battle/StagingBattleWorld.cs) (3D camera, units, simplified defender marker). That is **world-space battle presentation**, not a small overlay on the city grid.
+
+On battle end, `EndStagingBattleAndShowHud` re-enables the HUD and `CoRestoreHudAfterBattle` runs `UpdateDisplay()`, `DisplayCities`, and division strip refresh so you land back on the **same player view**. Because this path **hides the whole HUD** and swaps the camera stack, any restore bug shows up as a blank map or partial UI until that coroutine completes cleanly.
+
+| Aspect | Dice-style flows | Attack / staging battle |
+|--------|------------------|-------------------------|
+| Main HUD | Often stays active or overlaid | Root canvas **`SetActive(false)`** during battle |
+| Camera | Scoped roll / overlay camera | Other cameras disabled, battle camera; restore on exit |
+| Return | Close overlay / exit roll scope | Re-enable canvas + `UpdateDisplay` / `DisplayCities` / strip refresh |
+
 ## Project layout (`Assets/Scripts`)
 
 | Folder | Role |
@@ -84,7 +123,7 @@ Buildings are obtained through a two-dice roll system (6x6 grid):
 | **Core/GameData/** | Serializable game model: cities, players, buildings, tables |
 | **Core/Managers/** | Game flow coordinators (`GameManager`, `CountrySelectionManager`) |
 | **Core/Helpers/** | Shared utilities (e.g. dice math) |
-| **UI/Hud/** | Map HUD: city grid, turn header, flags, shared runtime canvas helper (`GlobalDomination.UI.Hud`) |
+| **UI/Hud/** | Map HUD: city grid, turn header, flags, division strip + attack staging flow (`PlayerDivisionsStripUI`), shared runtime canvas helper (`GlobalDomination.UI.Hud`) |
 | **UI/CityIcon/** | City icon, action menus, build-city dice roll, arena audio (`GlobalDomination.UI`) |
 | **Bootstrap/** | `GameTester` scene helper and **`UITestManager`** (orchestrates HUD + test UI; references Core + UI) |
 | **Editor/** | Asset pipeline / editor tools |
@@ -101,6 +140,7 @@ Assembly definitions: **`Core/GlobalDomination.Core.asmdef`** (everything under 
 - **Player.cs:** Player data including owned cities and country selection
 - **CountryDatabase.cs:** Static database of all countries and their cities
 - **BuildingRollTable.cs:** Handles building generation via dice rolls
+- **FortUnitEntry.cs**, **AttackStagingSummary.cs:** Fort unit instances and UI→rules handoff for staged attacks
 
 ### Managers (`Core/Managers/`)
 
@@ -197,18 +237,17 @@ Building firstBuilding = BuildingRollTable.RollForFirstBuilding();
 - Building upgrades system
 - Turn actions and resource management
 
-### Current Implementation Status
+### Current implementation status (high level)
 
-✅ Country selection system
-✅ City initialization with dice rolls
-✅ Building roll system (6x6 table)
-✅ Player management
-✅ Turn system foundation
-✅ Game state tracking
-⏳ Combat system (not implemented yet)
-⏳ Unit system (structure ready, needs implementation)
-⏳ Full turn actions (framework ready)
-⏳ UI implementation (manager structure ready)
+✅ Country selection (data + managers; flows vary by scene / test harness)  
+✅ City initialization with dice rolls (population, money, defense, first building)  
+✅ Building roll system (6×6 table) and adding buildings to cities  
+✅ Player management, turn index, elimination / game-over check  
+✅ Runtime HUD test path: city grid, headers, flags, city icon interactions (`UITestManager`, `CityIconUI`, etc.)  
+✅ **Fort roster:** per-city `FortUnitEntry` list, divisions, HUD division strip, fort UI in city check panel  
+✅ **Attack staging (UI prototype):** choose enemy player → place division units on a **4×6** grid; `AttackStagingSummary` + `PlayerDivisionsStripUI.AttackStagingConfirmed` for future combat hooks  
+⏳ **Combat resolution** (dice, casualties, city capture) — not wired to staging yet  
+⏳ **Full production** map / polish screens (much UI is still test-orchestrated)
 
 ## Next Steps for Development
 

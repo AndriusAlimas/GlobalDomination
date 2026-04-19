@@ -3,6 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using GlobalDomination.GameData;
+using GlobalDomination.UI;
 
 namespace GlobalDomination.UI.Hud
 {
@@ -56,6 +57,7 @@ namespace GlobalDomination.UI.Hud
                 return;
             }
 
+            TmpFontResolve.AssignIfNeeded(currentPlayerText);
             currentPlayerText.richText = true;
             currentPlayerText.textWrappingMode = TextWrappingModes.NoWrap;
             currentPlayerText.alignment = TextAlignmentOptions.Center;
@@ -83,6 +85,7 @@ namespace GlobalDomination.UI.Hud
                 return;
             }
 
+            TmpFontResolve.AssignIfNeeded(currentPlayerText);
             CountryData countryData = CountryDatabase.GetCountryData(currentPlayer.selectedCountry);
             string countryName = countryData != null ? countryData.countryName : currentPlayer.selectedCountry.ToString();
 
@@ -157,15 +160,11 @@ namespace GlobalDomination.UI.Hud
                 currentPlayerDetailsText = detailsObject.AddComponent<TextMeshProUGUI>();
             }
 
+            TmpFontResolve.AssignIfNeeded(currentPlayerDetailsText);
             currentPlayerDetailsText.richText = true;
             currentPlayerDetailsText.textWrappingMode = TextWrappingModes.NoWrap;
             currentPlayerDetailsText.alignment = TextAlignmentOptions.MidlineRight;
             currentPlayerDetailsText.raycastTarget = false;
-
-            if (TMP_Settings.defaultFontAsset != null)
-            {
-                currentPlayerDetailsText.font = TMP_Settings.defaultFontAsset;
-            }
 
             // Country text element
             Transform existingCountry = parent.Find("CurrentPlayerCountryText");
@@ -181,15 +180,11 @@ namespace GlobalDomination.UI.Hud
                 currentPlayerCountryText = countryObject.AddComponent<TextMeshProUGUI>();
             }
 
+            TmpFontResolve.AssignIfNeeded(currentPlayerCountryText);
             currentPlayerCountryText.richText = true;
             currentPlayerCountryText.textWrappingMode = TextWrappingModes.NoWrap;
             currentPlayerCountryText.alignment = TextAlignmentOptions.MidlineRight;
             currentPlayerCountryText.raycastTarget = false;
-
-            if (TMP_Settings.defaultFontAsset != null)
-            {
-                currentPlayerCountryText.font = TMP_Settings.defaultFontAsset;
-            }
         }
 
         private void ConfigurePlayerDetailsPlacement()

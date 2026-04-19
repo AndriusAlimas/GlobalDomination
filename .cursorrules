@@ -1,17 +1,211 @@
-# Global Domination (Unity 6)
+# Global Domination — Cursor rules (Unity / C#)
 
-**Authoritative agent rules:** `.cursor/rules/*.mdc`. Read **engineering-standards** first (change hygiene, cohesion/coupling, helpers); then **project-context** and file-type rules as needed.
+**Repo-specific conventions** also live under `.cursor/rules/*.mdc` (engineering standards, project context, C# conventions). When they conflict with generic guidance below, **prefer the `.mdc` rules for this project**. Design map: `README.md`.
 
-## Quick facts
+---
 
-- Design and layout map: `README.md` (Unity **6000.0.x** — `ProjectSettings/ProjectVersion.txt`).
-- **Core** (`GlobalDomination.Core` asmdef) = `Assets/Scripts/Core/**`. **UI** + **Bootstrap** = **Assembly-CSharp**. No new Core↔UI assembly cycles.
-- Namespaces: `GlobalDomination.GameData`, `.Managers`, `.UI`; large behaviours use **partial** class files by feature.
+# PROJECT CONTEXT
 
-## Expectations for edits
+- This is a **Unity** game project written in **C#** (turn-based strategy: **Global Domination**).
+- **Target Unity version:** **6000.0.x (Unity 6)** — see `ProjectSettings/ProjectVersion.txt`. Prefer APIs compatible with this editor; avoid relying on deprecated Unity patterns where alternatives exist.
+- **Primary platform(s):** **PC** (mouse-first uGUI / runtime-built HUD). Optimize UI and input accordingly; do not assume touch-first unless a task explicitly says so.
+- **Packages (informing choices):** New **Input System**, **URP**, uGUI, TextMeshPro, Unity Test Framework — see `Packages/manifest.json`.
+- **Architecture:** **`GlobalDomination.Core`** assembly = `Assets/Scripts/Core/**` (model, managers under Core, helpers). **`UI/`** + **`Bootstrap/`** = default **Assembly-CSharp**. **Do not introduce Core ↔ UI assembly cycles.** Respect existing namespaces (`GlobalDomination.GameData`, `.Managers`, `.UI`) and **partial** class splits for large behaviours.
+- Respect the existing architecture and patterns in this repo. Do not introduce new paradigms without a clear reason.
 
-- **Delete** obsolete code when replacing behavior; no dead paths, no large commented-out dumps.
-- **Reuse or add helpers** (`Core/Helpers/`, small focused types) instead of duplicating logic across `MonoBehaviour`s.
-- **Tight cohesion, loose coupling** — especially keep models free of UI dependencies.
+---
 
-Prefer adding focused `.mdc` files under `.cursor/rules/` instead of bloating this file.
+# CODE STYLE & ORGANIZATION
+
+- **Language:** C# (runtime), ShaderLab/HLSL (shaders), YAML (scenes/prefabs – avoid hand editing).
+- **Naming:**
+  - Classes, methods, properties, public fields: **PascalCase**.
+  - Private fields: **camelCase** with leading underscore (`_health`).
+  - Serialized private fields: **`[SerializeField] private`** with `_` prefix.
+  - Constants: **`SCREAMING_SNAKE_CASE`**.
+- Always specify access modifiers (`public` / `private` / `protected` / `internal`).
+- One responsibility per class / `MonoBehaviour` where practical.
+- Prefer small, focused methods. Extract helpers instead of large monolithic functions.
+- Organize folders by feature/domain where practical. **This repo** already uses **`Core/GameData`**, **`Core/Managers`**, **`UI/Hud`**, **`UI/CityIcon`**, **`Bootstrap/`** — follow `README.md` “Project layout” when adding major areas.
+
+---
+
+# ARCHITECTURE: COHESION, COUPLING & FILE SIZE
+
+- Aim for **high cohesion:**
+  - Each class / `MonoBehaviour` has one clear purpose.
+  - If a script’s responsibility cannot be explained in one short sentence, consider splitting it.
+- Aim for **low coupling:**
+  - Minimize direct knowledge of other concrete classes.
+  - Prefer communication via:
+    - Interfaces,
+    - Events / delegates,
+    - ScriptableObject “channels” (if the project uses them),
+    - Data passed as parameters instead of pulling from global state.
+- Avoid “God classes” and huge files:
+  - Soft limit: aim to keep most scripts under ~200–300 lines (excluding comments/whitespace).
+  - If a script grows too large:
+    - Extract independent behaviors into separate components on the same GameObject or child objects.
+    - Move pure logic into plain C# helper classes or services (e.g. under `Core/Helpers/` for domain logic).
+- **Unity-specific cohesion/coupling:**
+  - `MonoBehaviour`s: focus on Unity lifecycle and scene wiring; delegate complex logic to non-`MonoBehaviour` types when possible.
+  - Avoid unrelated responsibilities behind a single “Manager” — if a manager exists, give it a **narrow, explicit** job (`GameManager`, `UITestManager` patterns in this repo).
+- **Dependencies:**
+  - Prefer serialized references in the Inspector over `FindObjectOfType`, singletons, or global state **where the project already does**.
+  - This project uses **`GameManager.Instance`** and test orchestration — do not add new singletons casually; wrap global access in a clear API when needed.
+- **When adding new code:**
+  - Ask: “Can this be tested in isolation?” If not, consider extracting logic to a smaller, more cohesive unit.
+  - If a script needs many dependencies, consider splitting it into multiple cooperating components.
+
+---
+
+# UNITY LIFECYCLE & PATTERNS
+
+- Use Unity lifecycle methods appropriately:
+  - **`Awake`:** internal setup, caching components, constructing internal state.
+  - **`OnEnable` / `OnDisable`:** subscribe / unsubscribe to events and delegates.
+  - **`Start`:** initialization that depends on other objects/scenes being active.
+  - **`Update`:** per-frame logic only where necessary; prefer event-driven or timer-based updates.
+  - **`FixedUpdate`:** physics logic and `Rigidbody` interactions.
+- Prefer composition over “God objects”. Build behavior from multiple small components.
+- Avoid runtime `FindObjectOfType`, `FindObjectsOfType`, `GameObject.Find`, and `FindWithTag` in hot paths:
+  - Use serialized references in the Inspector.
+  - Use factories/constructors for non-`MonoBehaviour` objects.
+  - Use centralized managers only when clearly justified and with narrow responsibility.
+
+---
+
+# DATA & CONFIGURATION
+
+- Use **ScriptableObjects** for:
+  - Tunable game configs (movement speeds, damage tables, enemy stats, etc.).
+  - Shared data sets (item databases, localization tables, etc.).
+- Do not store arbitrary runtime-mutable state in ScriptableObjects unless explicitly designed for it and clearly documented.
+- For persistence (saves, settings), use a dedicated data layer:
+  - e.g., JSON files, a `PlayerPrefs` wrapper, or a custom save system.
+  - Keep persistence logic separate from gameplay logic.
+- **This project:** much configuration lives in **C# tables** (`CountryDatabase`, `BuildingRollTable`, `UnitCatalog`, etc.) — extend those patterns before introducing parallel config systems.
+
+---
+
+# INPUT, CAMERA & UI
+
+- Respect the **existing input system:**
+  - Project includes the **New Input System** — do not mix the legacy `Input` API unless the project already does so intentionally.
+  - Centralize input → gameplay action translation. Avoid scattering `Input.*` or `PlayerInput` calls across many systems.
+- **Camera:**
+  - If Cinemachine is in use, prefer configuring virtual cameras over manual `Transform` manipulation that fights it.
+  - Use dedicated camera controller scripts for camera logic.
+- **UI:**
+  - Separate UI from gameplay logic. UI should observe and reflect game state, not own it.
+  - For complex UIs, use a presenter/view-model style separation instead of heavy logic directly in UI `MonoBehaviour`s.
+  - **This project:** runtime-built HUD/modals (`CityIconUI`, `PlayerDivisionsStripUI`, etc.) — match existing procedural UI patterns when extending.
+
+---
+
+# GAMEPLAY & STATE MANAGEMENT
+
+- Centralize key game state in dedicated systems (`GameManager`, session/test harness, etc.), not scattered across random components.
+- Prefer explicit, deterministic state transitions (e.g., `MainMenu → Loading → Gameplay → Pause → GameOver`).
+- Use events/delegates or ScriptableObject event channels for decoupled communication when appropriate, but avoid unstructured global event usage.
+- For AI and complex interactions:
+  - Use clear patterns such as state machines, behavior trees, or GOAP if the project already uses them.
+  - Keep decision-making separate from rendering/animation.
+
+---
+
+# PHYSICS & ANIMATION
+
+- **Physics:**
+  - Use `Rigidbody` / `Rigidbody2D` APIs for movement when physics is involved; avoid directly setting `transform.position` / `rotation` on physics objects in `Update`.
+  - Use physics layers and collision matrices for filtering instead of ad-hoc checks everywhere.
+  - Choose between triggers and collisions deliberately and document assumptions.
+- **Animation:**
+  - Document Animator parameter names and expected states in comments where scripts depend on them.
+  - Use thin animation controller scripts that translate gameplay state into Animator parameters.
+
+---
+
+# PERFORMANCE PRACTICES
+
+- Avoid allocations in hot paths (`Update`, `FixedUpdate`, `LateUpdate`, tight coroutines, and high-frequency callbacks):
+  - Avoid LINQ in hot paths.
+  - Avoid string concatenation/interpolation per frame; cache strings when needed.
+  - Cache `GetComponent` (and similar calls) in `Awake`/`Start` rather than calling repeatedly.
+- For frequently spawned/despawned objects, prefer object pooling over repeated `Instantiate`/`Destroy` when it matters or when the project already uses pooling.
+- Use profiling tools (Profiler, Frame Debugger, etc.) to guide optimizations. Do not prematurely micro-optimize straightforward code.
+
+---
+
+# SCENES, PREFABS & ASSET WORKFLOW
+
+- Do not hand-edit `.unity` or `.prefab` YAML unless explicitly requested and justified.
+  - Prefer runtime code, editor tools, or custom inspectors for repetitive configuration.
+- When adding new components:
+  - Include a brief “Usage” comment at the top explaining:
+    - What the component does.
+    - How to set it up in the Inspector.
+    - Which other systems it depends on.
+- Maintain prefab variants consistently. Follow any existing base-prefab → variant workflow.
+- If the project uses Addressables/asset bundles:
+  - Respect that system.
+  - Avoid adding new `Resources.Load` usages unless consistent with existing patterns and clearly needed.
+- **This project:** avoid bulk-editing generated `.meta` files unless a task requires GUID preservation.
+
+---
+
+# ERROR HANDLING, LOGGING & DEBUGGING
+
+- Use logging thoughtfully:
+  - Avoid spammy logs in per-frame or high-frequency code.
+  - Use `Debug.LogWarning` / `Debug.LogError` for real issues, not normal control flow.
+  - Wrap editor-only debug logs with `#if UNITY_EDITOR` when appropriate.
+- For configuration/setup errors (e.g., missing serialized references):
+  - Fail early in development with clear messages using assertions or explicit checks.
+  - Avoid hard crashes in release builds for non-critical issues.
+- For complex behavior:
+  - Add short debug/testing notes:
+    - How to reproduce scenarios.
+    - What to inspect (components, variables, profiler markers).
+
+---
+
+# TESTABILITY & SEPARATION OF CONCERNS
+
+- Keep core logic in plain C# classes where possible, independent of Unity APIs, to make it unit-testable (`Core/GameData`, `Core/Helpers`).
+- `MonoBehaviour`s should:
+  - Bridge Unity events (`Update`, `OnTriggerEnter`, etc.) to core logic.
+  - Handle scene references, lifecycle wiring, and minimal coordination.
+- Avoid broad static singletons:
+  - If the project already uses them, do not introduce new ones casually.
+  - Prefer dependency injection or a small, well-defined service locator if aligned with existing architecture.
+
+---
+
+# DOCUMENTATION & COMMUNICATION
+
+- For each new system or important pattern:
+  - Add a high-level comment block at the top of the main script describing:
+    - Responsibility.
+    - Dependencies.
+    - How to use or extend it.
+- Substantial new folders or entry points: extend **`README.md`** “Project layout” when appropriate.
+- Use “ASSUMPTION:” comments when inferring design decisions not clearly enforced by the current code.
+- Document non-obvious trade-offs (performance vs clarity, flexibility vs simplicity) briefly in comments or PR descriptions.
+
+---
+
+# HOW THE AI SHOULD RESPOND
+
+- Before generating code:
+  - Restate the intent in 1–3 lines and outline the Unity approach (main components, lifecycle methods, patterns).
+- When editing code:
+  - Keep diffs **minimal** and localized to what was requested, unless a larger refactor is explicitly desired.
+  - **Remove replaced code**; avoid dead paths and duplicate implementations (see `.cursor/rules/engineering-standards.mdc`).
+- If a user request conflicts with:
+  - Unity constraints,
+  - performance best practices, or
+  - established project patterns,
+  briefly explain the issue and propose a safer/cleaner alternative.
+- When code depends on specific editor setup (tags, layers, input actions, animator parameters, ScriptableObjects, Addressables groups, etc.):
+  - Explicitly list those requirements in comments or in the response so they can be configured in the Unity editor.
