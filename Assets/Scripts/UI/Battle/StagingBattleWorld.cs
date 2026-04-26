@@ -15,6 +15,11 @@ namespace GlobalDomination.UI.Battle
         private const float SiegeRadius = 4.2f;
         private const float SiegeDpsPerAttacker = 9f;
         private const float AttackerHitPoints = 32f;
+        private const float DefenderSkirmisherHitPoints = 28f;
+        private const float StagingBattleMarchSpeed = 1.45f;
+
+        /// <summary>Imported soldier uses FBX materials; keep white so <see cref="StagingBattleLitMaterial.ApplyTeamTintToHierarchy"/> does not shift albedo.</summary>
+        private static readonly Color BattleUnitMaterialTint = Color.white;
 
         private AttackStagingSummary _summary;
         private System.Action _onExit;
@@ -23,6 +28,12 @@ namespace GlobalDomination.UI.Battle
         private Transform _cityRoot;
         private float _cityHp;
         private bool _battleEnded;
+        private Camera _battleCamera;
+        private Transform _groundTransform;
+
+        public Camera BattleCamera => _battleCamera;
+
+        public Transform BattleGroundTransform => _groundTransform;
 
         public void Initialize(AttackStagingSummary summary, System.Action onExit)
         {
@@ -38,6 +49,47 @@ namespace GlobalDomination.UI.Battle
             SpawnDefenderSkirmishers();
 
             if (_aliveAttackers.Count == 0)
+            {
+                int staged = _summary.StagedUnits != null ? _summary.StagedUnits.Count : 0;
+                if (staged > 0)
+                {
+                    Debug.LogError(
+                        "[StagingBattle] Expected "
+                        + staged
+                        + " attacker(s) from the staging grid but none were spawned. "
+                        + "Often a null FortUnitEntry in the grid list — check Console for per-slot warnings. "
+                        + "Battle view closes immediately.");
+                }
+                else
+                {
+                    Debug.LogWarning("[StagingBattle] No units in AttackStagingSummary; closing battle view.");
+                }
+
+                ExitBattle();
+                return;
+            }
+
+            StagingBattlePlayerController input = GetComponent<StagingBattlePlayerController>();
+            if (input == null)
+            {
+                input = gameObject.AddComponent<StagingBattlePlayerController>();
+            }
+
+            input.Bind(this);
+        }
+
+        /// <summary>
+        /// Player or projectile damage to the city (not siege over time).
+        /// </summary>
+        public void DamageCity(float amount)
+        {
+            if (_battleEnded || amount <= 0f)
+            {
+                return;
+            }
+
+            _cityHp -= amount;
+            if (_cityHp <= 0f)
             {
                 ExitBattle();
             }
@@ -213,9 +265,10 @@ namespace GlobalDomination.UI.Battle
             ground.transform.SetParent(transform, false);
             ground.transform.localScale = new Vector3(9f, 1f, 11f);
             ground.transform.position = new Vector3(0f, 0f, 5f);
-            Object.Destroy(ground.GetComponent<Collider>());
             MeshRenderer gr = ground.GetComponent<MeshRenderer>();
             StagingBattleLitMaterial.ApplyColor(gr, new Color(0.15f, 0.22f, 0.12f, 1f));
+            ground.AddComponent<StagingBattleGround>();
+            _groundTransform = ground.transform;
         }
 
         private void BuildCityMarker()
@@ -232,7 +285,7 @@ namespace GlobalDomination.UI.Battle
             MeshRenderer mr = spire.GetComponent<MeshRenderer>();
             StagingBattleLitMaterial.ApplyColor(mr, new Color(0.55f, 0.2f, 0.18f, 1f));
 
-            Object.Destroy(spire.GetComponent<Collider>());
+            spire.AddComponent<StagingBattleCityTarget>();
         }
 
         private void BuildRtsCamera()
@@ -249,6 +302,10 @@ namespace GlobalDomination.UI.Battle
             cam.transform.LookAt(new Vector3(0f, 0f, 10f));
 
             cam.enabled = true;
+            _battleCamera = cam;
+
+            StagingBattleRtsCamera rts = camGo.AddComponent<StagingBattleRtsCamera>();
+            rts.Initialize();
         }
 
         private void SpawnAttackerFormation()
@@ -268,20 +325,22 @@ namespace GlobalDomination.UI.Battle
                 FortUnitEntry e = units[i];
                 if (e == null)
                 {
+                    Debug.LogWarning("[StagingBattle] Staged unit at index " + i + " is null; skipping attacker spawn.");
                     continue;
                 }
 
                 int idx = Mathf.Clamp(cells[i], 0, GridCols * GridRows - 1);
                 Vector3 spawn = GridCellToWorld(idx, cityPos);
-                StagingBattleUnit u = CreateUnitCapsule(
+                StagingBattleUnit u = CreateBattleUnit(
                     $"Attacker_{e.buildingType}_{i}",
                     spawn,
                     cityPos,
                     autoMarch: true,
                     isAttacker: true,
                     AttackerHitPoints,
-                    new Color(0.35f, 0.55f, 0.95f, 1f),
-                    addDefenderAura: false);
+                    BattleUnitMaterialTint,
+                    addDefenderAura: false,
+                    visualHint: e.buildingType);
                 _aliveAttackers.Add(u);
             }
         }
@@ -293,19 +352,20 @@ namespace GlobalDomination.UI.Battle
             {
                 float x = (i - 1f) * 2.8f;
                 Vector3 spawn = basePos + new Vector3(x, 0.5f, 0f);
-                CreateUnitCapsule(
+                CreateBattleUnit(
                     $"Defender_Skirmisher_{i}",
                     spawn,
                     spawn,
                     autoMarch: false,
                     isAttacker: false,
-                    hitPoints: 1f,
-                    new Color(0.9f, 0.42f, 0.32f, 1f),
-                    addDefenderAura: true);
+                    hitPoints: DefenderSkirmisherHitPoints,
+                    BattleUnitMaterialTint,
+                    addDefenderAura: true,
+                    visualHint: BuildingType.None);
             }
         }
 
-        private StagingBattleUnit CreateUnitCapsule(
+        private StagingBattleUnit CreateBattleUnit(
             string objectName,
             Vector3 position,
             Vector3 marchTarget,
@@ -313,21 +373,44 @@ namespace GlobalDomination.UI.Battle
             bool isAttacker,
             float hitPoints,
             Color tint,
-            bool addDefenderAura)
+            bool addDefenderAura,
+            BuildingType visualHint)
         {
-            GameObject go = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            go.name = objectName;
-            go.transform.SetParent(transform, false);
-            go.transform.position = position;
-            go.transform.localScale = new Vector3(0.85f, 0.85f, 0.85f);
+            GameObject prefab = isAttacker
+                ? StagingBattleUnitVisualResolver.GetAttackerPrefab(visualHint)
+                : StagingBattleUnitVisualResolver.GetDefenderPrefab();
 
-            CapsuleCollider col = go.GetComponent<CapsuleCollider>();
-            col.center = Vector3.zero;
-            col.height = 2f;
-            col.radius = 0.45f;
+            GameObject go;
+            if (prefab != null)
+            {
+                go = Object.Instantiate(prefab, position, Quaternion.identity, transform);
+                go.name = objectName;
+                EnsureUnitPhysicsCollider(go);
+            }
+            else
+            {
+                go = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                go.name = objectName;
+                go.transform.SetParent(transform, false);
+                go.transform.position = position;
+                go.transform.localScale = new Vector3(0.85f, 0.85f, 0.85f);
 
-            StagingBattleUnit unit = go.AddComponent<StagingBattleUnit>();
-            unit.Configure(this, marchTarget, autoMarch, isAttacker, hitPoints, tint);
+                CapsuleCollider col = go.GetComponent<CapsuleCollider>();
+                col.center = Vector3.zero;
+                col.height = 2f;
+                col.radius = 0.45f;
+            }
+
+            // Capsule / placeholder prefabs: replace visible mesh with country soldier + idle (attackers and defenders).
+            StagingBattleUnit.EnsureDefaultSoldierVisual(go.transform);
+
+            StagingBattleUnit unit = go.GetComponent<StagingBattleUnit>();
+            if (unit == null)
+            {
+                unit = go.AddComponent<StagingBattleUnit>();
+            }
+
+            unit.Configure(this, marchTarget, autoMarch, isAttacker, hitPoints, tint, StagingBattleMarchSpeed);
 
             if (addDefenderAura)
             {
@@ -341,6 +424,24 @@ namespace GlobalDomination.UI.Battle
             }
 
             return unit;
+        }
+
+        private static void EnsureUnitPhysicsCollider(GameObject root)
+        {
+            if (root == null)
+            {
+                return;
+            }
+
+            if (root.GetComponentInChildren<Collider>(true) != null)
+            {
+                return;
+            }
+
+            CapsuleCollider cap = root.AddComponent<CapsuleCollider>();
+            cap.center = new Vector3(0f, 0.9f, 0f);
+            cap.height = 1.8f;
+            cap.radius = 0.35f;
         }
 
         private static Vector3 GridCellToWorld(int cellIndex, Vector3 cityPos)

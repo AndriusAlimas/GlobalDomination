@@ -125,6 +125,7 @@ On battle end, `EndStagingBattleAndShowHud` re-enables the HUD and `CoRestoreHud
 | **Core/Helpers/** | Shared utilities (e.g. dice math) |
 | **UI/Hud/** | Map HUD: city grid, turn header, flags, division strip + attack staging flow (`PlayerDivisionsStripUI`), shared runtime canvas helper (`GlobalDomination.UI.Hud`) |
 | **UI/CityIcon/** | City icon, action menus, build-city dice roll, arena audio (`GlobalDomination.UI`) |
+| **UI/Battle/** | Staging assault 3D view: units, camera, optional **Resources** soldier prefabs (`Assets/Resources/Battle/`, see `README.txt` there) |
 | **Bootstrap/** | `GameTester` scene helper and **`UITestManager`** (orchestrates HUD + test UI; references Core + UI) |
 | **Editor/** | Asset pipeline / editor tools |
 
@@ -158,6 +159,10 @@ Assembly definitions: **`Core/GlobalDomination.Core.asmdef`** (everything under 
 - **CurrentTurnHeaderUI.cs:** Top-of-screen turn / player header
 - **CountryFlagFactory.cs:** Procedural fallback flag sprites
 - **RuntimeUiCanvasHelper.cs:** Shared runtime overlay canvas setup
+
+### UI / Battle (staging assault)
+
+- **StagingBattleWorld.cs**, **StagingBattleUnit.cs**, **StagingBattleLitMaterial.cs**, **StagingBattleDefenderAura.cs**, **StagingBattleUnitVisualResolver.cs**, **StagingBattleRtsCamera.cs**, **StagingBattlePlayerController.cs** (`UI/Battle/`): capsule fallback or **prefab** from `Resources` (per-type `Battle/Attackers/<BuildingType>`, defender variant). Default attacker visuals are attached at runtime from country/unit Resources, e.g. `Battle/Countries/England/Units/Soldier/Model/Soldier` plus `Battle/Countries/England/Units/Soldier/Animations/Idle`, so art iteration does not require prefab GUID wiring. **RTS camera**: pan **WASD** + **middle-mouse drag**, **scroll** zoom, **Q/E** orbit. Editor (`StagingBattlePrefabMenu.cs`, `StagingBattleEnglandFbxImportSetup.cs`): optional placeholder prefabs and one-click England FBX rig/idle import setup.
 
 ### UI / City icon & dice
 
