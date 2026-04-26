@@ -28,24 +28,6 @@ namespace GlobalDomination.UI.Battle
             renderer.sharedMaterial = mat;
         }
 
-        public static void ApplyColor(SkinnedMeshRenderer renderer, Color color)
-        {
-            if (renderer == null)
-            {
-                return;
-            }
-
-            Shader shader = ResolveLitShader();
-            if (shader == null)
-            {
-                return;
-            }
-
-            Material mat = new Material(shader);
-            ApplyColorToMaterial(mat, color);
-            renderer.sharedMaterial = mat;
-        }
-
         /// <summary>
         /// Team tint: multiply <c>_BaseColor</c> / <c>_Color</c> via <see cref="MaterialPropertyBlock"/> when the shader exposes them;
         /// otherwise leaves the renderer unchanged so imported FBX materials stay intact.
@@ -53,6 +35,11 @@ namespace GlobalDomination.UI.Battle
         public static void ApplyTeamTintToHierarchy(Transform root, Color tint)
         {
             if (root == null)
+            {
+                return;
+            }
+
+            if (IsEffectivelyWhite(tint))
             {
                 return;
             }
@@ -87,8 +74,16 @@ namespace GlobalDomination.UI.Battle
                     continue;
                 }
 
-                // Keep imported materials as-is (no flat team-color replacement — that washed out textures / unused slots).
+                // Keep imported materials as-is (no flat team-color replacement; that washed out textures / unused slots).
             }
+        }
+
+        private static bool IsEffectivelyWhite(Color color)
+        {
+            return Mathf.Approximately(color.r, 1f)
+                && Mathf.Approximately(color.g, 1f)
+                && Mathf.Approximately(color.b, 1f)
+                && Mathf.Approximately(color.a, 1f);
         }
 
         private static Shader ResolveLitShader()

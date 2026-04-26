@@ -20,10 +20,10 @@ namespace GlobalDomination.UI.Battle
         private bool _autoMarch = true;
         private bool _isAttacker;
         private float _hp;
-        private float _maxHp;
         private StagingBattleWorld _world;
         private Vector3 _lastPosition;
         private Animator _animator;
+        private StagingBattleIdlePlayablePlayer _idlePlayer;
         private bool _animatorScanned;
         private string _walkBoolParameterName;
         private string _speedFloatParameterName;
@@ -43,6 +43,10 @@ namespace GlobalDomination.UI.Battle
         private bool _selectionVisible;
         private float _shootCooldownRemaining;
         private float _shootCooldownDuration;
+        private static AnimationClip s_cachedIdleClip;
+        private static bool s_idleClipResolved;
+        private static Avatar s_cachedSoldierAvatar;
+        private static bool s_soldierAvatarResolved;
         private static bool _loggedStaticSoldierMeshWarning;
 
         public bool IsAttacker => _isAttacker;
@@ -119,7 +123,6 @@ namespace GlobalDomination.UI.Battle
             _marchSpeed = Mathf.Max(0.05f, marchSpeed);
             _autoMarch = autoMarch;
             _isAttacker = isAttacker;
-            _maxHp = hitPoints;
             _hp = hitPoints;
             _lastPosition = transform.position;
 
@@ -137,6 +140,7 @@ namespace GlobalDomination.UI.Battle
             TryNormalizeImportedModelScaleAndEnableRenderers(transform);
             ReplayStagingIdleIfPresent(transform);
             CacheAnimator();
+            _idlePlayer = GetComponent<StagingBattleIdlePlayablePlayer>();
             ScanAnimatorParametersIfNeeded();
         }
 
@@ -360,17 +364,34 @@ namespace GlobalDomination.UI.Battle
                 return;
             }
 
+            Avatar avatar = ResolveSoldierAvatar();
+            if (avatar != null && avatar.isValid)
+            {
+                rigAnimator.avatar = avatar;
+            }
+        }
+
+        private static Avatar ResolveSoldierAvatar()
+        {
+            if (s_soldierAvatarResolved)
+            {
+                return s_cachedSoldierAvatar;
+            }
+
+            s_soldierAvatarResolved = true;
             GameObject prefab = Resources.Load<GameObject>(UkSoldierModelResourcePath);
             if (prefab == null)
             {
-                return;
+                return null;
             }
 
             Animator source = prefab.GetComponentInChildren<Animator>(true);
             if (source != null && source.avatar != null && source.avatar.isValid)
             {
-                rigAnimator.avatar = source.avatar;
+                s_cachedSoldierAvatar = source.avatar;
             }
+
+            return s_cachedSoldierAvatar;
         }
 
         private static void TryAutoUprightSoldierMount(Transform unitRoot)
@@ -592,21 +613,30 @@ namespace GlobalDomination.UI.Battle
 
         private static AnimationClip ResolveIdleClip()
         {
+            if (s_idleClipResolved)
+            {
+                return s_cachedIdleClip;
+            }
+
+            s_idleClipResolved = true;
             AnimationClip[] clips = Resources.LoadAll<AnimationClip>(UkSoldierIdleClipResourcePath);
             AnimationClip picked = PickClip(clips);
             if (picked != null)
             {
-                return picked;
+                s_cachedIdleClip = picked;
+                return s_cachedIdleClip;
             }
 
             AnimationClip directIdle = Resources.Load<AnimationClip>(UkSoldierIdleClipResourcePath);
             if (directIdle != null)
             {
-                return directIdle;
+                s_cachedIdleClip = directIdle;
+                return s_cachedIdleClip;
             }
 
             AnimationClip[] fromModel = Resources.LoadAll<AnimationClip>(UkSoldierModelResourcePath);
-            return PickClip(fromModel);
+            s_cachedIdleClip = PickClip(fromModel);
+            return s_cachedIdleClip;
         }
 
         private static void HideRootPrimitiveMeshIfPresent(Transform unitRoot)
@@ -979,10 +1009,9 @@ namespace GlobalDomination.UI.Battle
         {
             UpdateAnimatorPresentation();
             UpdateShootCooldownLinesPresentation();
-            StagingBattleIdlePlayablePlayer idlePlayer = GetComponent<StagingBattleIdlePlayablePlayer>();
-            if (idlePlayer != null)
+            if (_idlePlayer != null)
             {
-                idlePlayer.TickIdlePlayback(IsActivelyMarching());
+                _idlePlayer.TickIdlePlayback(IsActivelyMarching());
             }
         }
 
@@ -1064,7 +1093,7 @@ namespace GlobalDomination.UI.Battle
             }
 
             // Idle is driven by Playables on this root; do not set Animator.speed to 0 while stationary (defenders).
-            if (GetComponent<StagingBattleIdlePlayablePlayer>() != null)
+            if (_idlePlayer != null)
             {
                 return;
             }
